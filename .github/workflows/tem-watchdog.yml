@@ -16,12 +16,6 @@ on:
         default: 'false'
         type: choice
         options: ['false', 'true']
-      dry_run:
-        description: 'Dry run — poll & diff only, skip rebuild and push'
-        required: false
-        default: 'false'
-        type: choice
-        options: ['false', 'true']
 
 # ── Permissions ───────────────────────────────────────────────────────────────
 permissions:
@@ -51,7 +45,7 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install --quiet anthropic openpyxl requests
+        run: pip install --quiet -r requirements.txt
 
       # ── 3. Git identity (required for watchdog.py's git commit) ──────────────
       - name: Configure git identity
@@ -65,8 +59,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           FLAGS=""
-          if [ "${{ github.event.inputs.force }}"   = "true" ]; then FLAGS="$FLAGS --force";   fi
-          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then FLAGS="$FLAGS --dry-run"; fi
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then FLAGS="--force"; fi
           python watchdog.py $FLAGS
 
       # ── 5. Show tail of log in Actions summary ────────────────────────────────
