@@ -10,3 +10,42 @@
 2026-05-25 14:26:47,041 [INFO] PDF built: /home/user/Modelingagent1/reports/morning_report_2026-05-25.pdf
 2026-05-25 14:26:47,041 [INFO] Morning report complete: morning_report_2026-05-25.pdf
 2026-05-25 14:26:47,041 [INFO] ======================================================================
+2026-05-25 16:42:57,854 [INFO] ======================================================================
+2026-05-25 16:42:57,854 [INFO] GS Morning Reports started: 2026-05-25T16:42:57.854186+00:00
+2026-05-25 16:42:57,854 [INFO] Tickers: TEM
+2026-05-25 16:42:57,855 [INFO] ─── TEM (Tempus AI, Inc.) ───
+2026-05-25 16:42:58,423 [INFO]   $46.18  -0.67%  cap=$8.29B
+2026-05-25 16:42:58,612 [INFO]   news=8  filings=0
+2026-05-25 16:42:58,612 [INFO]   Calling Claude (claude-opus-4-7) for TEM …
+2026-05-25 16:43:18,760 [INFO] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-05-25 16:43:18,785 [INFO]   Rating=Buy  PT=62.0  Headline: TEM: BMS Partnership, ArteraAI Launch Reinforce Platform The
+2026-05-25 16:43:18,785 [INFO]   Generating charts …
+2026-05-25 16:43:19,345 [INFO]   PDF: TEM_morning_report_2026-05-25.pdf
+2026-05-25 16:43:19,346 [INFO] Done. Generated: TEM_morning_report_2026-05-25.pdf
+2026-05-25 16:43:19,346 [INFO] ======================================================================
+2026-05-25 16:43:29,681 [INFO] ======================================================================
+2026-05-25 16:43:29,681 [INFO] GS Morning Reports started: 2026-05-25T16:43:29.681708+00:00
+2026-05-25 16:43:29,682 [INFO] Tickers: RGTI
+2026-05-25 16:43:29,682 [INFO] ─── RGTI (Rigetti Computing, Inc.) ───
+2026-05-25 16:43:30,297 [INFO]   $26.42  +19.87%  cap=$8.78B
+2026-05-25 16:43:30,749 [INFO]   news=8  filings=0
+2026-05-25 16:43:30,749 [INFO]   Calling Claude (claude-opus-4-7) for RGTI …
+2026-05-25 16:43:50,016 [INFO] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-05-25 16:43:50,042 [INFO]   Rating=Buy  PT=32.0  Headline: RGTI: $100M Govt Backing Catalyzes Rerating; Reiterate Buy
+2026-05-25 16:43:50,042 [INFO]   Generating charts …
+2026-05-25 16:43:50,562 [INFO]   PDF: RGTI_morning_report_2026-05-25.pdf
+2026-05-25 16:43:50,562 [INFO] Done. Generated: RGTI_morning_report_2026-05-25.pdf
+2026-05-25 16:43:50,562 [INFO] ======================================================================
+2026-05-25 16:43:52,613 [INFO] ======================================================================
+2026-05-25 16:43:52,613 [INFO] GS Morning Reports started: 2026-05-25T16:43:52.612956+00:00
+2026-05-25 16:43:52,613 [INFO] Tickers: BBAI
+2026-05-25 16:43:52,613 [INFO] ─── BBAI (BigBear.ai Holdings, Inc.) ───
+2026-05-25 16:43:53,075 [INFO]   $4.18  -0.48%  cap=$2.00B
+2026-05-25 16:43:53,209 [INFO]   news=8  filings=0
+2026-05-25 16:43:53,209 [INFO]   Calling Claude (claude-opus-4-7) for BBAI …
+2026-05-25 16:44:11,755 [INFO] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-05-25 16:44:11,782 [INFO]   Rating=Neutral  PT=4.5  Headline: BBAI: Panama Win, Backlog Build Offset by Restatement Overha
+2026-05-25 16:44:11,782 [INFO]   Generating charts …
+2026-05-25 16:44:12,261 [INFO]   PDF: BBAI_morning_report_2026-05-25.pdf
+2026-05-25 16:44:12,261 [INFO] Done. Generated: BBAI_morning_report_2026-05-25.pdf
+2026-05-25 16:44:12,261 [INFO] ======================================================================
