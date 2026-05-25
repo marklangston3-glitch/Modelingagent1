@@ -1,0 +1,88 @@
+name: TEM EDGAR Watchdog
+
+# ── Triggers ──────────────────────────────────────────────────────────────────
+on:
+  schedule:
+    # 7 am EST (UTC-5) = 12:00 UTC
+    # During EDT (UTC-4) this fires at 8 am EDT — acceptable one-hour drift
+    - cron: '0 12 * * *'
+
+  # Allow manual runs from the Actions tab
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force rebuild even if no new filings detected'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+      dry_run:
+        description: 'Dry run — poll & diff only, skip rebuild and push'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+
+# ── Permissions ───────────────────────────────────────────────────────────────
+permissions:
+  contents: write   # needed for watchdog.py to git push
+
+# ── Job ───────────────────────────────────────────────────────────────────────
+jobs:
+  watchdog:
+    name: Check EDGAR & Rebuild TEM DCF
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout repo (working branch)
+        uses: actions/checkout@v4
+        with:
+          ref: claude/agent-tools-edgar-setup-PimAK
+          # persist-credentials=true (default) lets watchdog.py push via git
+          fetch-depth: 0
+
+      # ── 2. Python ────────────────────────────────────────────────────────────
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install --quiet anthropic openpyxl requests
+
+      # ── 3. Git identity (required for watchdog.py's git commit) ──────────────
+      - name: Configure git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # ── 4. Run watchdog ───────────────────────────────────────────────────────
+      - name: Run watchdog.py
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          FLAGS=""
+          if [ "${{ github.event.inputs.force }}"   = "true" ]; then FLAGS="$FLAGS --force";   fi
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then FLAGS="$FLAGS --dry-run"; fi
+          python watchdog.py $FLAGS
+
+      # ── 5. Show tail of log in Actions summary ────────────────────────────────
+      - name: Print watchdog log (last 60 lines)
+        if: always()
+        run: |
+          echo "### watchdog.log (last 60 lines)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -60 watchdog.log >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      # ── 6. Upload log as artifact (30-day retention) ──────────────────────────
+      - name: Upload watchdog log artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: watchdog-log-${{ github.run_id }}
+          path: watchdog.log
+          retention-days: 30
