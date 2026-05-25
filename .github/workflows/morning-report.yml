@@ -1,0 +1,92 @@
+name: Morning Intelligence Report  (TEM · RGTI · BBAI)
+
+# ── Triggers ──────────────────────────────────────────────────────────────────
+on:
+  schedule:
+    # 7:15 am EST (UTC-5) = 12:15 UTC  — runs after watchdog.py (12:00 UTC)
+    # During EDT (UTC-4) this fires at 8:15 am EDT — acceptable drift
+    - cron: '15 12 * * 1-5'   # weekdays only (markets closed Sat/Sun)
+
+  # Allow manual runs with optional overrides
+  workflow_dispatch:
+    inputs:
+      ticker:
+        description: 'Single ticker to report on (leave blank for all: TEM, RGTI, BBAI)'
+        required: false
+        default: ''
+        type: string
+      no_push:
+        description: 'Build PDF without pushing to repo'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+
+# ── Permissions ───────────────────────────────────────────────────────────────
+permissions:
+  contents: write   # morning_report.py pushes the PDF via git
+
+# ── Job ───────────────────────────────────────────────────────────────────────
+jobs:
+  report:
+    name: Generate Morning Report PDF
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # ── 1. Checkout (fresh — picks up any watchdog commits from 12:00 run) ───
+      - name: Checkout repo (working branch)
+        uses: actions/checkout@v4
+        with:
+          ref: claude/agent-tools-edgar-setup-PimAK
+          fetch-depth: 0
+
+      # ── 2. Python ────────────────────────────────────────────────────────────
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install --quiet -r requirements.txt
+
+      # ── 3. Git identity (morning_report.py pushes the PDF) ───────────────────
+      - name: Configure git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # ── 4. Generate report ───────────────────────────────────────────────────
+      - name: Run morning_report.py
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          FLAGS=""
+          if [ -n "${{ github.event.inputs.ticker }}" ]; then
+            FLAGS="$FLAGS --ticker ${{ github.event.inputs.ticker }}"
+          fi
+          if [ "${{ github.event.inputs.no_push }}" = "true" ]; then
+            FLAGS="$FLAGS --no-push"
+          fi
+          python morning_report.py $FLAGS
+
+      # ── 5. Show log in Actions summary ───────────────────────────────────────
+      - name: Print report log (last 60 lines)
+        if: always()
+        run: |
+          echo "### morning_report.log (last 60 lines)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -60 morning_report.log >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      # ── 6. Upload PDF + log as artifacts (30-day retention) ──────────────────
+      - name: Upload report artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: morning-report-${{ github.run_id }}
+          path: |
+            reports/morning_report_*.pdf
+            morning_report.log
+          retention-days: 30

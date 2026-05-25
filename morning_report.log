@@ -1,0 +1,12 @@
+2026-05-25 14:26:14,226 [INFO] ======================================================================
+2026-05-25 14:26:14,226 [INFO] Morning report started: 2026-05-25T14:26:14.226329+00:00
+2026-05-25 14:26:14,226 [INFO] Tickers: TEM
+2026-05-25 14:26:14,227 [INFO] ─── TEM (Tempus AI) ───
+2026-05-25 14:26:14,846 [INFO]   $46.18  -0.67%  cap=$8.29B
+2026-05-25 14:26:15,086 [INFO]   8 news items
+2026-05-25 14:26:15,086 [INFO]   0 overnight filing(s)
+2026-05-25 14:26:15,087 [INFO]   Calling Claude (claude-opus-4-7) for TEM analysis …
+2026-05-25 14:26:46,990 [INFO] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-05-25 14:26:47,041 [INFO] PDF built: /home/user/Modelingagent1/reports/morning_report_2026-05-25.pdf
+2026-05-25 14:26:47,041 [INFO] Morning report complete: morning_report_2026-05-25.pdf
+2026-05-25 14:26:47,041 [INFO] ======================================================================

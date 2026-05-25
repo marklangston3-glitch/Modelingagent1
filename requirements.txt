@@ -1,3 +1,5 @@
 anthropic
 openpyxl
+reportlab
 requests
+yfinance
