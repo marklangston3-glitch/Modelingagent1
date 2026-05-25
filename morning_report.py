@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-morning_report.py — Goldman Sachs equity-research-style Company Update PDFs.
+morning_report.py — Langston Consultancy & Enterprises equity-research-style Company Update PDFs.
 
 Produces one single-page PDF per ticker (TEM, RGTI, BBAI):
   reports/{TICKER}_morning_report_{YYYY-MM-DD}.pdf
@@ -342,7 +342,7 @@ def generate_analysis(ticker: str, company: str, price_data: dict,
         f"  🚨 {f['form']} filed {f['date']}: {f.get('title','')}" for f in filings
     ) or "  No new filings in last 36 hours."
 
-    prompt = f"""You are a Goldman Sachs equity research analyst writing a pre-market Company Update note.
+    prompt = f"""You are an equity research analyst at Langston Consultancy & Enterprises writing a pre-market Company Update note.
 Institutional quality: precise, data-referenced, concise. Today: {datetime.now(timezone.utc).strftime("%B %d, %Y")}.
 
 TICKER: {ticker}  |  COMPANY: {company}
@@ -718,8 +718,8 @@ def draw_header(c, ticker: str, company: str, exch: str,
     # GS wordmark (right)
     c.setFont("Helvetica-Bold", 8.5)
     c.setFillColor(white)
-    gw = stringWidth("GOLDMAN SACHS", "Helvetica-Bold", 8.5)
-    c.drawString(576 - gw, HDR_BAND_BOT + 18, "GOLDMAN SACHS")
+    gw = stringWidth("LANGSTON CONSULTANCY & ENTERPRISES", "Helvetica-Bold", 8.5)
+    c.drawString(576 - gw, HDR_BAND_BOT + 18, "LANGSTON CONSULTANCY & ENTERPRISES")
     # Gold accent line under GS name
     c.setStrokeColor(HexColor("#C9A84C"))
     c.setLineWidth(1.2)
@@ -837,13 +837,13 @@ def draw_footer(c, ticker: str):
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     c.setFont("Helvetica-Bold", 7)
     c.setFillColor(GS_DGRAY)
-    c.drawString(36, FTR_DIV_Y - 11, "Equity Research Coverage")
+    c.drawString(36, FTR_DIV_Y - 11, "Langston Consultancy & Enterprises  |  Equity Research Coverage")
 
     c.setFont("Helvetica", 6.5)
     c.setFillColor(GS_MGRAY)
     c.drawString(36, FTR_DIV_Y - 22, f"AI-Generated Pre-Market Brief  |  {now_str}")
 
-    disc = ("This report is generated automatically using SEC EDGAR filings, market data (yfinance), and "
+    disc = ("This report is prepared by Langston Consultancy & Enterprises using SEC EDGAR filings, market data (yfinance), and "
             "AI-generated analysis. It does not constitute investment advice. All figures are estimates. "
             "Past performance is not indicative of future results. Investors should conduct their own due diligence.")
     c.setFont("Helvetica", 5.5)
@@ -885,7 +885,7 @@ def build_ticker_pdf(
 
     c = pdfcanvas.Canvas(str(out), pagesize=letter)
     c.setTitle(f"{ticker} — Company Update  {date_tag}")
-    c.setAuthor("Goldman Sachs | Equity Research")
+    c.setAuthor("Langston Consultancy & Enterprises | Equity Research")
     c.setSubject(f"Company Update: {company}")
 
     # ── Fixed elements (canvas) ───────────────────────────────────────────────
