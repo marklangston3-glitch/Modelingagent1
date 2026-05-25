@@ -62,3 +62,32 @@
 2026-05-25 16:47:55,356 [INFO]   PDF: TEM_morning_report_2026-05-25.pdf
 2026-05-25 16:47:55,357 [INFO] Done. Generated: TEM_morning_report_2026-05-25.pdf
 2026-05-25 16:47:55,357 [INFO] ======================================================================
+2026-05-25 16:54:01,864 [INFO] ======================================================================
+2026-05-25 16:54:01,865 [INFO] GS Morning Reports started: 2026-05-25T16:54:01.864543+00:00
+2026-05-25 16:54:01,865 [INFO] Tickers: TEM, RGTI, BBAI
+2026-05-25 16:54:01,865 [INFO] ─── TEM (Tempus AI, Inc.) ───
+2026-05-25 16:54:02,522 [INFO]   $46.18  -0.67%  cap=$8.29B
+2026-05-25 16:54:02,733 [INFO]   news=8  filings=0
+2026-05-25 16:54:02,734 [INFO]   Calling Claude (claude-opus-4-7) for TEM …
+2026-05-25 16:54:21,415 [INFO] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-05-25 16:54:21,436 [INFO]   Rating=Neutral  PT=None  Headline: No Material Overnight Updates
+2026-05-25 16:54:21,436 [INFO]   Generating charts …
+2026-05-25 16:54:22,052 [INFO]   PDF: TEM_morning_report_2026-05-25.pdf
+2026-05-25 16:54:22,052 [INFO] ─── RGTI (Rigetti Computing, Inc.) ───
+2026-05-25 16:54:22,421 [INFO]   $26.42  +19.87%  cap=$8.78B
+2026-05-25 16:54:22,559 [INFO]   news=8  filings=0
+2026-05-25 16:54:22,559 [INFO]   Calling Claude (claude-opus-4-7) for RGTI …
+2026-05-25 16:54:40,334 [INFO] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-05-25 16:54:40,335 [INFO]   Rating=Buy  PT=32.0  Headline: RGTI: $100M Govt Backing Drives 65% Two-Day Rally; Reiterate
+2026-05-25 16:54:40,335 [INFO]   Generating charts …
+2026-05-25 16:54:40,678 [INFO]   PDF: RGTI_morning_report_2026-05-25.pdf
+2026-05-25 16:54:40,678 [INFO] ─── BBAI (BigBear.ai Holdings, Inc.) ───
+2026-05-25 16:54:41,052 [INFO]   $4.18  -0.48%  cap=$2.00B
+2026-05-25 16:54:41,186 [INFO]   news=8  filings=0
+2026-05-25 16:54:41,187 [INFO]   Calling Claude (claude-opus-4-7) for BBAI …
+2026-05-25 16:54:58,386 [INFO] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-05-25 16:54:58,387 [INFO]   Rating=Buy  PT=5.5  Headline: BBAI: Panama Cargo Win, Backlog Build; Reiterate Buy
+2026-05-25 16:54:58,387 [INFO]   Generating charts …
+2026-05-25 16:54:58,840 [INFO]   PDF: BBAI_morning_report_2026-05-25.pdf
+2026-05-25 16:54:58,840 [INFO] Done. Generated: TEM_morning_report_2026-05-25.pdf, RGTI_morning_report_2026-05-25.pdf, BBAI_morning_report_2026-05-25.pdf
+2026-05-25 16:54:58,840 [INFO] ======================================================================
