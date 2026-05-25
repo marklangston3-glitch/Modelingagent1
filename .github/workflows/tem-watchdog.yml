@@ -1,4 +1,4 @@
-name: TEM EDGAR Watchdog
+name: EDGAR DCF Watchdog  (TEM · RGTI · BBAI)
 
 # ── Triggers ──────────────────────────────────────────────────────────────────
 on:
@@ -16,6 +16,11 @@ on:
         default: 'false'
         type: choice
         options: ['false', 'true']
+      ticker:
+        description: 'Single ticker to rebuild (leave blank for all: TEM, RGTI, BBAI)'
+        required: false
+        default: ''
+        type: string
 
 # ── Permissions ───────────────────────────────────────────────────────────────
 permissions:
@@ -24,9 +29,9 @@ permissions:
 # ── Job ───────────────────────────────────────────────────────────────────────
 jobs:
   watchdog:
-    name: Check EDGAR & Rebuild TEM DCF
+    name: Check EDGAR & Rebuild DCF Models
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       # ── 1. Checkout ──────────────────────────────────────────────────────────
@@ -59,16 +64,17 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           FLAGS=""
-          if [ "${{ github.event.inputs.force }}" = "true" ]; then FLAGS="--force"; fi
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then FLAGS="$FLAGS --force"; fi
+          if [ -n "${{ github.event.inputs.ticker }}" ]; then FLAGS="$FLAGS --ticker ${{ github.event.inputs.ticker }}"; fi
           python watchdog.py $FLAGS
 
       # ── 5. Show tail of log in Actions summary ────────────────────────────────
-      - name: Print watchdog log (last 60 lines)
+      - name: Print watchdog log (last 80 lines)
         if: always()
         run: |
-          echo "### watchdog.log (last 60 lines)" >> $GITHUB_STEP_SUMMARY
+          echo "### watchdog.log (last 80 lines)" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          tail -60 watchdog.log >> $GITHUB_STEP_SUMMARY
+          tail -80 watchdog.log >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       # ── 6. Upload log as artifact (30-day retention) ──────────────────────────

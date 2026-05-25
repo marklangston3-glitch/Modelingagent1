@@ -1,25 +1,31 @@
 #!/usr/bin/env python3
 """
-watchdog.py — TEM EDGAR filing watchdog
+watchdog.py — Multi-ticker EDGAR filing watchdog
 
-Runs daily (via cron).  Checks the SEC EDGAR RSS feed for new 10-K / 10-Q
-filings from Tempus AI (CIK 0001717115 / ticker TEM).  When a new filing is
-detected it:
-  1. Pulls fresh XBRL financials from data.sec.gov
-  2. Rebuilds TEM_dcf.xlsx using build_tem_dcf.py
-  3. Commits & pushes the updated workbook to the repo
-  4. Appends a structured log entry to watchdog.log
+Runs daily (via cron / GitHub Actions).  For each watched ticker it:
+  1. Checks the SEC EDGAR RSS feed for new 10-K / 10-Q filings
+  2. When a new filing is detected, pulls fresh XBRL company facts
+  3. Rebuilds the DCF workbook using build_dcf.py
+  4. Commits & pushes the updated workbook(s) to the repo
+  5. Appends structured log entries to watchdog.log
+
+Watched tickers
+---------------
+  TEM   Tempus AI          CIK 0001717115
+  RGTI  Rigetti Computing  CIK 0001838359
+  BBAI  BigBear.ai         CIK 0001836981
 
 Usage
 -----
-  python watchdog.py            # normal run
-  python watchdog.py --force    # skip cache check, rebuild unconditionally
+  python watchdog.py             # normal run (all tickers)
+  python watchdog.py --force     # skip cache check, rebuild all unconditionally
+  python watchdog.py --ticker TEM          # single ticker
+  python watchdog.py --ticker TEM --force  # force single ticker
 """
 
 import argparse
 import json
 import logging
-import os
 import subprocess
 import sys
 import time
@@ -30,33 +36,23 @@ from pathlib import Path
 import requests
 
 # ── Config ────────────────────────────────────────────────────────────────────
-TEM_CIK        = "0001717115"
-WATCH_FORMS    = {"10-K", "10-Q"}
-REPO_DIR       = Path(__file__).parent.resolve()
-STATE_FILE     = REPO_DIR / ".watchdog_state.json"
-LOG_FILE       = REPO_DIR / "watchdog.log"
-BUILD_SCRIPT   = REPO_DIR / "build_tem_dcf.py"
-OUTPUT_XLSX    = REPO_DIR / "TEM_dcf.xlsx"
-BRANCH         = "claude/agent-tools-edgar-setup-PimAK"
-GIT_REMOTE     = "origin"
 
-EDGAR_HEADERS  = {"User-Agent": "ModelingAgent watchdog@example.com"}
-RSS_URL        = (
-    f"https://www.sec.gov/cgi-bin/browse-edgar"
-    f"?action=getcompany&CIK={TEM_CIK}&type=10-K&dateb=&owner=include"
-    f"&count=10&search_text=&output=atom"
-)
-RSS_URLS = {
-    "10-K": (
-        f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany"
-        f"&CIK={TEM_CIK}&type=10-K&dateb=&owner=include&count=10&output=atom"
-    ),
-    "10-Q": (
-        f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany"
-        f"&CIK={TEM_CIK}&type=10-Q&dateb=&owner=include&count=10&output=atom"
-    ),
+TICKERS = {
+    "TEM":  {"cik": "0001717115", "name": "Tempus AI"},
+    "RGTI": {"cik": "0001838359", "name": "Rigetti Computing"},
+    "BBAI": {"cik": "0001836981", "name": "BigBear.ai"},
 }
-FACTS_URL = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{TEM_CIK}.json"
+
+WATCH_FORMS   = {"10-K", "10-Q"}
+REPO_DIR      = Path(__file__).parent.resolve()
+STATE_FILE    = REPO_DIR / ".watchdog_state.json"
+LOG_FILE      = REPO_DIR / "watchdog.log"
+BUILD_SCRIPT  = REPO_DIR / "build_dcf.py"
+BRANCH        = "claude/agent-tools-edgar-setup-PimAK"
+GIT_REMOTE    = "origin"
+
+EDGAR_HEADERS = {"User-Agent": "ModelingAgent watchdog@example.com"}
+
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -74,11 +70,23 @@ log = logging.getLogger("watchdog")
 def load_state() -> dict:
     if STATE_FILE.exists():
         return json.loads(STATE_FILE.read_text())
-    return {"seen_accessions": [], "last_run": None, "last_rebuild": None}
+    return {}
 
 
 def save_state(state: dict):
     STATE_FILE.write_text(json.dumps(state, indent=2))
+
+
+def ticker_state(state: dict, ticker: str) -> dict:
+    """Return (or create) the per-ticker sub-dict."""
+    if ticker not in state:
+        state[ticker] = {
+            "seen_accessions": [],
+            "last_run": None,
+            "last_rebuild": None,
+            "last_snapshot": {},
+        }
+    return state[ticker]
 
 
 # ── EDGAR helpers ─────────────────────────────────────────────────────────────
@@ -96,15 +104,26 @@ def _get(url: str) -> requests.Response:
     raise RuntimeError(f"Failed to fetch {url} after 4 attempts")
 
 
-def fetch_rss_filings(form_type: str) -> list[dict]:
-    """Return a list of {accession, date, form, title} from the EDGAR RSS feed."""
-    url = RSS_URLS[form_type]
+def rss_url(cik: str, form_type: str) -> str:
+    return (
+        f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany"
+        f"&CIK={cik}&type={form_type}&dateb=&owner=include&count=10&output=atom"
+    )
+
+
+def facts_url(cik: str) -> str:
+    return f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
+
+
+def fetch_rss_filings(cik: str, form_type: str) -> list[dict]:
+    """Return a list of {accession, date, form, title, url} from the RSS feed."""
+    url = rss_url(cik, form_type)
     r   = _get(url)
     ns  = {"atom": "http://www.w3.org/2005/Atom"}
     try:
         root = ET.fromstring(r.text)
     except ET.ParseError as exc:
-        log.error("RSS parse error for %s: %s", form_type, exc)
+        log.error("RSS parse error for %s %s: %s", cik, form_type, exc)
         return []
 
     filings = []
@@ -113,12 +132,9 @@ def fetch_rss_filings(form_type: str) -> list[dict]:
         upd   = (entry.findtext("atom:updated", "", ns) or "").strip()
         link  = entry.find("atom:link", ns)
         href  = link.get("href", "") if link is not None else ""
-        # accession number embedded in the filing-index URL
         acc = ""
         if "/Archives/edgar/data/" in href:
-            parts = href.rstrip("/").split("/")
-            # URL pattern: .../data/<cik>/<accession-no-dashes>/...
-            for p in parts:
+            for p in href.rstrip("/").split("/"):
                 if len(p) == 18 and p.replace("-", "").isdigit():
                     acc = p
                     break
@@ -132,11 +148,10 @@ def fetch_rss_filings(form_type: str) -> list[dict]:
     return filings
 
 
-def fetch_xbrl_facts() -> dict:
-    """Return the full companyfacts JSON for TEM."""
-    log.info("Fetching XBRL company facts …")
-    r = _get(FACTS_URL)
-    return r.json()
+def fetch_xbrl_facts(cik: str) -> dict:
+    """Return the full companyfacts JSON for the given CIK."""
+    log.info("  Fetching XBRL company facts …")
+    return _get(facts_url(cik)).json()
 
 
 def extract_annual_value(facts: dict, concept: str, taxonomy: str = "us-gaap") -> dict[str, int]:
@@ -151,26 +166,26 @@ def extract_annual_value(facts: dict, concept: str, taxonomy: str = "us-gaap") -
 
 
 def snapshot_key_metrics(facts: dict) -> dict:
-    """Pull the metrics that build_tem_dcf.py hard-codes from EDGAR."""
+    """Snapshot the XBRL concepts used by build_dcf.py."""
     concepts = {
-        "revenue":       ("RevenueFromContractWithCustomerExcludingAssessedTax", "us-gaap"),
-        "sga":           ("GeneralAndAdministrativeExpense",                     "us-gaap"),
-        "rd":            ("ResearchAndDevelopmentExpense",                        "us-gaap"),
-        "ebit":          ("OperatingIncomeLoss",                                  "us-gaap"),
-        "da":            ("DepreciationDepletionAndAmortization",                 "us-gaap"),
-        "sbc":           ("AllocatedShareBasedCompensationExpense",               "us-gaap"),
-        "capex":         ("PaymentsToAcquirePropertyPlantAndEquipment",           "us-gaap"),
-        "capsw":         ("CapitalizedComputerSoftwareAdditions",                 "us-gaap"),
-        "int_exp":       ("InterestExpenseDebt",                                  "us-gaap"),
-        "int_inc":       ("InvestmentIncomeInterest",                             "us-gaap"),
-        "net_loss":      ("NetIncomeLoss",                                        "us-gaap"),
-        "cash":          ("CashAndCashEquivalentsAtCarryingValue",                "us-gaap"),
-        "conv_debt":     ("ConvertibleDebtNoncurrent",                            "us-gaap"),
-        "shares":        ("WeightedAverageNumberOfDilutedSharesOutstanding",      "us-gaap"),
-        "goodwill":      ("Goodwill",                                             "us-gaap"),
-        "intangibles":   ("IntangibleAssetsNetExcludingGoodwill",                 "us-gaap"),
-        "ar":            ("AccountsReceivableNetCurrent",                         "us-gaap"),
-        "dta":           ("DeferredTaxAssetsGross",                               "us-gaap"),
+        "revenue":     ("RevenueFromContractWithCustomerExcludingAssessedTax", "us-gaap"),
+        "sga":         ("GeneralAndAdministrativeExpense",                     "us-gaap"),
+        "rd":          ("ResearchAndDevelopmentExpense",                        "us-gaap"),
+        "ebit":        ("OperatingIncomeLoss",                                  "us-gaap"),
+        "da":          ("DepreciationDepletionAndAmortization",                 "us-gaap"),
+        "sbc":         ("AllocatedShareBasedCompensationExpense",               "us-gaap"),
+        "capex":       ("PaymentsToAcquirePropertyPlantAndEquipment",           "us-gaap"),
+        "capsw":       ("CapitalizedComputerSoftwareAdditions",                 "us-gaap"),
+        "int_exp":     ("InterestExpenseDebt",                                  "us-gaap"),
+        "int_inc":     ("InvestmentIncomeInterest",                             "us-gaap"),
+        "net_loss":    ("NetIncomeLoss",                                        "us-gaap"),
+        "cash":        ("CashAndCashEquivalentsAtCarryingValue",                "us-gaap"),
+        "conv_debt":   ("ConvertibleDebtNoncurrent",                            "us-gaap"),
+        "shares":      ("WeightedAverageNumberOfDilutedSharesOutstanding",      "us-gaap"),
+        "goodwill":    ("Goodwill",                                             "us-gaap"),
+        "intangibles": ("IntangibleAssetsNetExcludingGoodwill",                 "us-gaap"),
+        "ar":          ("AccountsReceivableNetCurrent",                         "us-gaap"),
+        "dta":         ("DeferredTaxAssetsGross",                               "us-gaap"),
     }
     snap = {}
     for key, (concept, tax) in concepts.items():
@@ -179,7 +194,7 @@ def snapshot_key_metrics(facts: dict) -> dict:
 
 
 def diff_snapshots(old: dict, new: dict) -> list[str]:
-    """Return human-readable lines describing what changed between two snapshots."""
+    """Return human-readable lines describing what changed."""
     changes = []
     all_keys = set(old) | set(new)
     for key in sorted(all_keys):
@@ -201,131 +216,169 @@ def diff_snapshots(old: dict, new: dict) -> list[str]:
 
 
 # ── Build & push ──────────────────────────────────────────────────────────────
-def rebuild_xlsx(dry_run: bool = False) -> bool:
-    """Re-run build_tem_dcf.py.  Returns True on success."""
-    if dry_run:
-        log.info("[dry-run] would run build_tem_dcf.py")
-        return True
-    log.info("Running build_tem_dcf.py …")
+def rebuild_xlsx(ticker: str) -> bool:
+    """Re-run build_dcf.py for the given ticker.  Returns True on success."""
+    log.info("  Running build_dcf.py --ticker %s …", ticker)
     result = subprocess.run(
-        [sys.executable, str(BUILD_SCRIPT)],
+        [sys.executable, str(BUILD_SCRIPT), "--ticker", ticker],
         cwd=str(REPO_DIR),
         capture_output=True,
         text=True,
     )
     if result.returncode != 0:
-        log.error("build_tem_dcf.py failed:\n%s", result.stderr)
+        log.error("  build_dcf.py failed:\n%s", result.stderr)
         return False
-    log.info("build_tem_dcf.py succeeded:\n%s", result.stdout.strip())
+    log.info("  build_dcf.py succeeded: %s", result.stdout.strip())
     return True
 
 
-def git_commit_push(message: str, dry_run: bool = False) -> bool:
-    """Stage TEM_dcf.xlsx + watchdog.log, commit, and push."""
-    if dry_run:
-        log.info("[dry-run] would git commit & push")
-        return True
+def git_commit_push(message: str, xlsx_files: list[str]) -> bool:
+    """Stage updated workbooks + state + log, commit, and push."""
+    stage = xlsx_files + ["watchdog.log", ".watchdog_state.json"]
     cmds = [
-        ["git", "add", "TEM_dcf.xlsx", "watchdog.log", ".watchdog_state.json"],
+        ["git", "add"] + stage,
         ["git", "commit", "-m", message],
         ["git", "push", "-u", GIT_REMOTE, BRANCH],
     ]
     for cmd in cmds:
         result = subprocess.run(cmd, cwd=str(REPO_DIR), capture_output=True, text=True)
         if result.returncode != 0 and "nothing to commit" not in result.stdout:
-            log.error("git command failed: %s\n%s", " ".join(cmd), result.stderr)
+            log.error("  git command failed: %s\n%s", " ".join(cmd), result.stderr)
             return False
-        log.info("$ %s  →  %s", " ".join(cmd), result.stdout.strip() or result.stderr.strip())
+        log.info("  $ %s  →  %s", " ".join(cmd), result.stdout.strip() or result.stderr.strip())
     return True
 
 
-# ── Main watchdog logic ───────────────────────────────────────────────────────
-def run(force: bool = False, dry_run: bool = False):
-    now_utc = datetime.now(timezone.utc).isoformat()
-    log.info("=" * 70)
-    log.info("Watchdog run started at %s  (force=%s, dry_run=%s)", now_utc, force, dry_run)
+# ── Per-ticker watchdog logic ─────────────────────────────────────────────────
+def check_ticker(ticker: str, cik: str, ts: dict, force: bool, now_utc: str) -> dict:
+    """
+    Poll EDGAR for one ticker, optionally rebuild, return updated ticker state.
+    Returns a dict with keys: rebuilt, new_filings, changes, xlsx.
+    """
+    result = {"rebuilt": False, "new_filings": [], "changes": [], "xlsx": None}
+    seen   = set(ts.get("seen_accessions", []))
 
-    state = load_state()
-    seen  = set(state.get("seen_accessions", []))
-
-    # ── 1. Poll RSS feeds ────────────────────────────────────────────────────
+    # ── 1. Poll RSS ──────────────────────────────────────────────────────────
     new_filings = []
     for form_type in WATCH_FORMS:
-        filings = fetch_rss_filings(form_type)
-        log.info("RSS %s: found %d entries", form_type, len(filings))
+        filings = fetch_rss_filings(cik, form_type)
+        log.info("  RSS %s %s: %d entries", ticker, form_type, len(filings))
         for f in filings:
             if f["accession"] and f["accession"] not in seen:
                 new_filings.append(f)
                 log.info(
-                    "  NEW FILING: %s  acc=%s  date=%s  title=%s",
+                    "    NEW FILING: %s acc=%s date=%s  %s",
                     f["form"], f["accession"], f["date"], f["title"],
                 )
 
     trigger = bool(new_filings) or force
 
     if not trigger:
-        log.info("No new 10-K / 10-Q filings detected. Nothing to do.")
-        state["last_run"] = now_utc
-        save_state(state)
-        return
+        log.info("  %s — no new filings detected.", ticker)
+        ts["last_run"] = now_utc
+        return result
 
-    # ── 2. Fetch fresh XBRL facts ────────────────────────────────────────────
-    facts   = fetch_xbrl_facts()
+    # ── 2. Fetch XBRL facts + diff ───────────────────────────────────────────
+    facts   = fetch_xbrl_facts(cik)
     new_snap = snapshot_key_metrics(facts)
-
-    # Diff against previous snapshot
-    old_snap = state.get("last_snapshot", {})
+    old_snap = ts.get("last_snapshot", {})
     changes  = diff_snapshots(old_snap, new_snap)
     if changes:
-        log.info("Financial data changes detected (%d):", len(changes))
-        for line in changes:
+        log.info("  %s — %d financial data changes:", ticker, len(changes))
+        for line in changes[:30]:
             log.info(line)
     else:
-        log.info("XBRL snapshot unchanged (filing may be an amendment or metadata update).")
+        log.info("  %s — XBRL snapshot unchanged.", ticker)
 
     # ── 3. Rebuild xlsx ──────────────────────────────────────────────────────
-    ok = rebuild_xlsx(dry_run=dry_run)
+    xlsx_name = f"{ticker}_dcf.xlsx"
+    ok = rebuild_xlsx(ticker)
     if not ok:
-        log.error("Rebuild failed — aborting push.")
-        return
+        log.error("  %s — rebuild failed; skipping push.", ticker)
+        return result
 
-    # ── 4. Commit & push ─────────────────────────────────────────────────────
-    form_strs = ", ".join(f"{f['form']} ({f['date']})" for f in new_filings) or "forced rebuild"
-    commit_msg = (
-        f"Auto-update TEM_dcf.xlsx — new EDGAR filing(s): {form_strs}\n\n"
-        f"Run: {now_utc}\n"
-        + ("\n".join(changes[:30]) if changes else "No metric changes detected.")
-        + "\n\nhttps://claude.ai/code/session_014hesikAtm8zzGNsXbYWmGV"
-    )
-    git_commit_push(commit_msg, dry_run=dry_run)
-
-    # ── 5. Update state ──────────────────────────────────────────────────────
+    # ── 4. Update state ──────────────────────────────────────────────────────
     for f in new_filings:
         if f["accession"]:
             seen.add(f["accession"])
-    state["seen_accessions"] = sorted(seen)
-    state["last_run"]        = now_utc
-    state["last_rebuild"]    = now_utc
-    state["last_snapshot"]   = new_snap
-    state["last_filings"]    = new_filings
-    save_state(state)
+    ts["seen_accessions"] = sorted(seen)
+    ts["last_run"]        = now_utc
+    ts["last_rebuild"]    = now_utc
+    ts["last_snapshot"]   = new_snap
+    ts["last_filings"]    = new_filings
 
-    log.info("Watchdog run complete.  Rebuilt and pushed TEM_dcf.xlsx.")
+    result.update(rebuilt=True, new_filings=new_filings, changes=changes, xlsx=xlsx_name)
+    return result
+
+
+# ── Main orchestrator ─────────────────────────────────────────────────────────
+def run(tickers_to_watch: list[str] | None = None, force: bool = False):
+    now_utc = datetime.now(timezone.utc).isoformat()
+    log.info("=" * 70)
+    log.info("Watchdog run started at %s  (force=%s)", now_utc, force)
+
+    watch_list = tickers_to_watch or list(TICKERS.keys())
+    log.info("Watching: %s", ", ".join(watch_list))
+
+    state = load_state()
+
+    rebuilt_xlsx  = []
+    all_filings   = []
+    all_changes   = []
+
+    for ticker in watch_list:
+        if ticker not in TICKERS:
+            log.warning("Unknown ticker %s — skipping.", ticker)
+            continue
+        cik = TICKERS[ticker]["cik"]
+        log.info("─── %s (CIK %s) ───", ticker, cik)
+        ts     = ticker_state(state, ticker)
+        result = check_ticker(ticker, cik, ts, force, now_utc)
+
+        if result["rebuilt"]:
+            rebuilt_xlsx.append(result["xlsx"])
+            all_filings.extend(result["new_filings"])
+            all_changes.extend(result["changes"])
+
+    # ── Commit & push all rebuilt files in one shot ──────────────────────────
+    if rebuilt_xlsx:
+        form_strs  = ", ".join(
+            f"{f['form']} {f.get('ticker','?')} ({f['date']})"
+            for f in all_filings
+        ) or "forced rebuild"
+        commit_msg = (
+            f"Auto-update DCF models — new EDGAR filing(s): {form_strs}\n\n"
+            f"Rebuilt: {', '.join(rebuilt_xlsx)}\n"
+            f"Run: {now_utc}\n"
+            + ("\n".join(all_changes[:40]) if all_changes else "No metric changes detected.")
+            + "\n\nhttps://claude.ai/code/session_014hesikAtm8zzGNsXbYWmGV"
+        )
+        git_commit_push(commit_msg, rebuilt_xlsx)
+    else:
+        log.info("No rebuilds required this run.")
+        # Still save state (updates last_run timestamps)
+        save_state(state)
+        return
+
+    save_state(state)
+    log.info("Watchdog run complete.  Rebuilt: %s", ", ".join(rebuilt_xlsx))
     log.info("=" * 70)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="TEM EDGAR filing watchdog")
+    parser = argparse.ArgumentParser(description="Multi-ticker EDGAR filing watchdog")
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Rebuild and push even if no new filings are detected.",
+        help="Rebuild and push even if no new filings detected.",
     )
     parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Poll and diff, but skip the actual rebuild and git push.",
+        "--ticker",
+        metavar="TICKER",
+        help="Watch only this ticker (default: all).",
     )
     args = parser.parse_args()
-    run(force=args.force, dry_run=args.dry_run)
+
+    watch = [args.ticker.upper()] if args.ticker else None
+    run(tickers_to_watch=watch, force=args.force)
