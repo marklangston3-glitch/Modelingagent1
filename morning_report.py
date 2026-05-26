@@ -1653,6 +1653,219 @@ def build_ticker_pdf(td: dict) -> Path:
 
 
 # ════════════════════════════════════════════════════════════════════════════
+#  SENDGRID EMAIL DELIVERY
+# ════════════════════════════════════════════════════════════════════════════
+
+def _sendgrid_send(
+    api_key: str,
+    from_email: str,
+    from_name: str,
+    to_email: str,
+    subject: str,
+    html_body: str,
+    attachments: list[dict] | None = None,
+) -> bool:
+    """
+    POST to SendGrid v3 /mail/send using stdlib urllib only — no extra package.
+    Returns True on HTTP 202, False on any error.
+    """
+    import urllib.request
+    import urllib.error
+
+    payload: dict = {
+        "personalizations": [{"to": [{"email": to_email}]}],
+        "from": {"email": from_email, "name": from_name},
+        "subject": subject,
+        "content": [{"type": "text/html", "value": html_body}],
+    }
+    if attachments:
+        payload["attachments"] = attachments
+
+    req = urllib.request.Request(
+        "https://api.sendgrid.com/v3/mail/send",
+        data=json.dumps(payload).encode(),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type":  "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            log.info("  SendGrid: email sent (HTTP %d)", resp.status)
+            return True
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode(errors="replace")
+        log.warning("  SendGrid HTTP %d: %s", exc.code, body[:400])
+        return False
+    except Exception as exc:
+        log.warning("  SendGrid error: %s", exc)
+        return False
+
+
+def send_email_report(
+    pdf_paths: list[Path],
+    all_ticker_data: list[dict],
+    macro_text: str,
+) -> bool:
+    """
+    Email the morning report PDF(s) via SendGrid.
+
+    Reads environment variables:
+      SENDGRID_API_KEY     — required; if absent, logs and skips silently
+      SENDGRID_FROM_EMAIL  — verified sender address in your SendGrid account
+                             (default: config.EMAIL = marklangston3@gmail.com)
+                             NOTE: the FROM address must be verified via
+                             SendGrid → Settings → Sender Authentication before
+                             emails will deliver successfully.
+
+    Attaches the combined morning_report_{date}.pdf when present;
+    falls back to attaching all generated PDFs.
+    Sends to config.EMAIL (marklangston3@gmail.com).
+    """
+    import base64
+
+    api_key = os.environ.get("SENDGRID_API_KEY", "").strip()
+    if not api_key:
+        log.info("  SENDGRID_API_KEY not set — skipping email delivery.")
+        return False
+
+    from_email = os.environ.get("SENDGRID_FROM_EMAIL", EMAIL).strip()
+    to_email   = EMAIL
+    date_str   = datetime.now(timezone.utc).strftime("%B %d, %Y")
+
+    # ── Conviction table HTML rows ────────────────────────────────────────────
+    sorted_data = sorted(
+        all_ticker_data,
+        key=lambda x: x["analysis"].get("conviction_score", 0),
+        reverse=True,
+    )
+    ticker_rows = ""
+    for rank, td in enumerate(sorted_data, 1):
+        an   = td["analysis"]
+        pd_  = td["price_data"]
+        conv = an.get("conviction_score", 5)
+        chg  = pd_["change_pct"]
+        rtg  = an.get("rating", "Neutral")
+        chg_color = "#1A5276" if chg >= 0 else "#7B241C"
+        rtg_color = "#1A5276" if rtg == "Buy" else ("#7B241C" if rtg == "Sell" else "#4A5568")
+        sign   = "+" if chg >= 0 else ""
+        row_bg = "#EEF1F6" if rank % 2 == 0 else "#FFFFFF"
+        thesis = xe(an.get("one_line_thesis", "—")[:65])
+        ticker_rows += (
+            f'<tr style="background:{row_bg}">'
+            f'<td style="padding:7px 6px;font-weight:bold;color:#4A5568">{rank}</td>'
+            f'<td style="padding:7px 6px;font-weight:bold;color:#002F5F">{xe(td["ticker"])}</td>'
+            f'<td style="padding:7px 6px;color:#4A5568">{xe(td["company"])}</td>'
+            f'<td style="padding:7px 6px;text-align:right">${pd_["price"]:.2f}</td>'
+            f'<td style="padding:7px 6px;text-align:right;color:{chg_color};'
+            f'font-weight:bold">{sign}{chg:.2f}%</td>'
+            f'<td style="padding:7px 6px;text-align:center;color:{rtg_color};'
+            f'font-weight:bold">{xe(rtg)}</td>'
+            f'<td style="padding:7px 6px;text-align:center;font-weight:bold;'
+            f'color:#002F5F">{conv}/10</td>'
+            f'<td style="padding:7px 6px;color:#4A5568;font-size:11px">{thesis}</td>'
+            f'</tr>'
+        )
+
+    # ── Macro bullets HTML ────────────────────────────────────────────────────
+    macro_bullets = ""
+    for line in macro_text.split("\n"):
+        line = line.strip().lstrip("•‒–—-").strip()
+        if line:
+            macro_bullets += f'<li style="margin-bottom:6px">{xe(line)}</li>\n'
+    macro_bullets = macro_bullets or '<li>No macro data available.</li>'
+
+    # ── Full HTML body ────────────────────────────────────────────────────────
+    html_body = (
+        '<!DOCTYPE html><html><head><meta charset="utf-8"></head>'
+        '<body style="font-family:Arial,Helvetica,sans-serif;color:#1A202C;'
+        'max-width:700px;margin:0 auto;padding:0">'
+
+        # Header band
+        f'<div style="background:#002F5F;padding:22px 28px;border-bottom:3px solid #C9A84C">'
+        f'<h1 style="color:white;margin:0;font-size:18px;letter-spacing:1px">'
+        f'{FIRM_NAME_U}</h1>'
+        f'<p style="color:#A8C8F0;margin:5px 0 0;font-size:12px">'
+        f'MORNING INTELLIGENCE BRIEF &nbsp;&middot;&nbsp; EQUITY RESEARCH'
+        f' &nbsp;&middot;&nbsp; {date_str.upper()}</p></div>'
+
+        # Sub-bar
+        '<div style="padding:12px 28px;background:#EEF1F6;border-bottom:1px solid #CDD3DF">'
+        '<p style="margin:0;font-size:12px;color:#4A5568">'
+        'Your pre-market equity research brief is ready. '
+        'Full report attached as PDF.</p></div>'
+
+        # Conviction table
+        '<div style="padding:20px 28px">'
+        '<h2 style="font-size:13px;color:#002F5F;border-bottom:2px solid #002F5F;'
+        'padding-bottom:6px;margin-bottom:12px;letter-spacing:0.5px">'
+        'CONVICTION RANKING</h2>'
+        '<table style="width:100%;border-collapse:collapse;font-size:12px">'
+        '<thead><tr style="background:#002F5F;color:white">'
+        '<th style="padding:8px 6px;text-align:left">#</th>'
+        '<th style="padding:8px 6px;text-align:left">TICKER</th>'
+        '<th style="padding:8px 6px;text-align:left">COMPANY</th>'
+        '<th style="padding:8px 6px;text-align:right">PRICE</th>'
+        '<th style="padding:8px 6px;text-align:right">1D%</th>'
+        '<th style="padding:8px 6px;text-align:center">RATING</th>'
+        '<th style="padding:8px 6px;text-align:center">CONV.</th>'
+        '<th style="padding:8px 6px;text-align:left">THESIS</th>'
+        '</tr></thead>'
+        f'<tbody>{ticker_rows}</tbody></table></div>'
+
+        # Macro briefing
+        '<div style="padding:0 28px 20px">'
+        '<h2 style="font-size:13px;color:#002F5F;border-bottom:2px solid #002F5F;'
+        'padding-bottom:6px;margin-bottom:12px;letter-spacing:0.5px">'
+        'MACRO INTELLIGENCE</h2>'
+        '<ul style="margin:0;padding-left:18px;font-size:12px;'
+        f'line-height:1.7;color:#1A202C">{macro_bullets}</ul></div>'
+
+        # Footer
+        '<div style="padding:14px 28px;background:#002F5F;margin-top:8px">'
+        f'<p style="color:#A8C8F0;margin:0;font-size:10px">'
+        f'{xe(FIRM_NAME)} &nbsp;&middot;&nbsp; Equity Research'
+        ' &nbsp;&middot;&nbsp; AI-generated'
+        ' &nbsp;&middot;&nbsp; Not investment advice.</p></div>'
+        '</body></html>'
+    )
+
+    # ── Choose PDFs to attach ─────────────────────────────────────────────────
+    # Prefer the combined morning_report_{date}.pdf; fall back to all PDFs.
+    attach_paths = [p for p in pdf_paths if p.name.startswith("morning_report_")]
+    if not attach_paths:
+        attach_paths = list(pdf_paths)
+
+    attachments: list[dict] = []
+    for path in attach_paths:
+        try:
+            with open(path, "rb") as fh:
+                enc = base64.b64encode(fh.read()).decode()
+            attachments.append({
+                "content":     enc,
+                "type":        "application/pdf",
+                "filename":    path.name,
+                "disposition": "attachment",
+            })
+            log.info("  Attaching %s (%.0f KB)", path.name, path.stat().st_size / 1024)
+        except Exception as exc:
+            log.warning("  Could not attach %s: %s", path.name, exc)
+
+    subject = f"{FIRM_NAME} Morning Brief — {date_str}"
+    log.info("  Sending to %s via SendGrid (from: %s) …", to_email, from_email)
+    return _sendgrid_send(
+        api_key    = api_key,
+        from_email = from_email,
+        from_name  = f"{FIRM_NAME} Research",
+        to_email   = to_email,
+        subject    = subject,
+        html_body  = html_body,
+        attachments= attachments,
+    )
+
+
+# ════════════════════════════════════════════════════════════════════════════
 #  GIT PUSH
 # ════════════════════════════════════════════════════════════════════════════
 
@@ -1683,8 +1896,10 @@ def git_push_reports(pdf_paths: list[Path]) -> bool:
 
 def main():
     parser = argparse.ArgumentParser(description="Langston's morning report PDFs")
-    parser.add_argument("--no-push", action="store_true", help="Skip git push")
-    parser.add_argument("--ticker",  metavar="T", help="Single ticker (default: all)")
+    parser.add_argument("--no-push",  action="store_true", help="Skip git push")
+    parser.add_argument("--no-email", action="store_true",
+                        help="Skip SendGrid email delivery (default: send if SENDGRID_API_KEY set)")
+    parser.add_argument("--ticker",   metavar="T", help="Single ticker (default: all)")
     args = parser.parse_args()
 
     api_key = get_anthropic_key()
@@ -1780,6 +1995,15 @@ def main():
             log.info("Reports pushed to %s:%s", GIT_REMOTE, BRANCH)
         else:
             log.warning("Push failed — PDFs saved locally in reports/")
+
+    # ── 5. Email ──────────────────────────────────────────────────────────────
+    if not args.no_email:
+        log.info("─── Sending email report ───")
+        ok = send_email_report(pdf_list, all_ticker_data, macro_text)
+        if ok:
+            log.info("  Email delivered to %s", EMAIL)
+        else:
+            log.info("  Email skipped or failed (see above).")
 
     log.info("Done. Generated: %s", ", ".join(p.name for p in pdf_list))
     log.info("=" * 70)

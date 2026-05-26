@@ -92,59 +92,110 @@ jobs:
           echo "filings=$FILINGS"      >> $GITHUB_OUTPUT
           echo "Rebuild triggered: $TRIGGERED — Tickers: $TICKERS — Filings: $FILINGS"
 
-      # ── 6. Send email notification (only when filing actually detected) ───────
+      # ── 6. Send email notification via SendGrid (only when filing detected) ───
+      # Requires SENDGRID_API_KEY secret (Settings → Secrets → Actions).
+      # SENDGRID_FROM_EMAIL must be a sender verified in your SendGrid account
+      # (Settings → Sender Authentication → Single Sender Verification).
       - name: Send model update notification
         if: steps.check_rebuild.outputs.triggered == 'true'
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.gmail.com
-          server_port: 587
-          secure: false
-          username: ${{ secrets.GMAIL_USERNAME }}
-          password: ${{ secrets.GMAIL_APP_PASSWORD }}
-          subject: "Langston's Model Update — New SEC Filing: ${{ steps.check_rebuild.outputs.tickers }}"
-          to: marklangston3@gmail.com
-          from: "Langston's Financial Intelligence <${{ secrets.GMAIL_USERNAME }}>"
-          html_body: |
-            <html>
-            <body style="font-family: Arial, sans-serif; color: #1A202C; max-width: 600px;">
-              <div style="background: #002F5F; padding: 20px; border-bottom: 3px solid #C9A84C;">
-                <h2 style="color: white; margin: 0;">LANGSTON'S FINANCIAL INTELLIGENCE</h2>
-                <p style="color: #A8C8F0; margin: 4px 0 0;">DCF Model Update Alert</p>
-              </div>
-              <div style="padding: 20px; background: white;">
-                <h3 style="color: #002F5F;">New SEC Filing Detected — Models Rebuilt</h3>
-                <table style="width: 100%; border-collapse: collapse;">
-                  <tr>
-                    <td style="padding: 8px; font-weight: bold; color: #4A5568; background: #EEF1F6;">Tickers Updated</td>
-                    <td style="padding: 8px;"><b>${{ steps.check_rebuild.outputs.tickers }}</b></td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 8px; font-weight: bold; color: #4A5568; background: #EEF1F6;">Filing(s)</td>
-                    <td style="padding: 8px;">${{ steps.check_rebuild.outputs.filings }}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 8px; font-weight: bold; color: #4A5568; background: #EEF1F6;">Action Taken</td>
-                    <td style="padding: 8px;">DCF workbook(s) rebuilt from latest XBRL data and pushed to repository.</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 8px; font-weight: bold; color: #4A5568; background: #EEF1F6;">Run Time</td>
-                    <td style="padding: 8px;">${{ github.run_id }} — ${{ github.event_name }}</td>
-                  </tr>
-                </table>
-                <p style="margin-top: 20px;">
-                  <a href="https://github.com/marklangston3-glitch/modelingagent1"
-                     style="background: #002F5F; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">
-                    View Updated Models →
-                  </a>
-                </p>
-              </div>
-              <div style="padding: 12px 20px; background: #EEF1F6; font-size: 11px; color: #B0BAC9;">
-                This alert is generated automatically by Langston's EDGAR Watchdog.
-                It does not constitute investment advice.
-              </div>
-            </body>
-            </html>
+        env:
+          SENDGRID_API_KEY:    ${{ secrets.SENDGRID_API_KEY }}
+          SENDGRID_FROM_EMAIL: ${{ secrets.SENDGRID_FROM_EMAIL }}
+        run: |
+          python - <<'PYEOF'
+          import json, os, urllib.request, urllib.error
+
+          api_key    = os.environ.get("SENDGRID_API_KEY",    "").strip()
+          from_email = os.environ.get("SENDGRID_FROM_EMAIL", "marklangston3@gmail.com").strip()
+          to_email   = "marklangston3@gmail.com"
+          tickers    = "${{ steps.check_rebuild.outputs.tickers }}"
+          filings    = "${{ steps.check_rebuild.outputs.filings }}"
+          run_id     = "${{ github.run_id }}"
+          event_name = "${{ github.event_name }}"
+
+          if not api_key:
+              print("SENDGRID_API_KEY not set — skipping email notification.")
+              raise SystemExit(0)
+
+          html = f"""<!DOCTYPE html>
+          <html><head><meta charset="utf-8"></head>
+          <body style="font-family:Arial,Helvetica,sans-serif;color:#1A202C;max-width:600px;margin:0 auto">
+            <div style="background:#002F5F;padding:20px 24px;border-bottom:3px solid #C9A84C">
+              <h2 style="color:white;margin:0;font-size:17px;letter-spacing:1px">
+                LANGSTON'S FINANCIAL INTELLIGENCE
+              </h2>
+              <p style="color:#A8C8F0;margin:4px 0 0;font-size:12px">
+                EDGAR WATCHDOG &nbsp;&middot;&nbsp; DCF MODEL UPDATE ALERT
+              </p>
+            </div>
+            <div style="padding:20px 24px;background:white">
+              <h3 style="color:#002F5F;margin-top:0">New SEC Filing Detected — Models Rebuilt</h3>
+              <table style="width:100%;border-collapse:collapse;font-size:13px">
+                <tr>
+                  <td style="padding:9px 8px;font-weight:bold;color:#4A5568;background:#EEF1F6;
+                             width:35%">Tickers Updated</td>
+                  <td style="padding:9px 8px"><b>{tickers}</b></td>
+                </tr>
+                <tr>
+                  <td style="padding:9px 8px;font-weight:bold;color:#4A5568;background:#EEF1F6">
+                    Filing(s)</td>
+                  <td style="padding:9px 8px">{filings}</td>
+                </tr>
+                <tr>
+                  <td style="padding:9px 8px;font-weight:bold;color:#4A5568;background:#EEF1F6">
+                    Action Taken</td>
+                  <td style="padding:9px 8px">
+                    DCF workbook(s) rebuilt from latest XBRL data and pushed to repository.
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:9px 8px;font-weight:bold;color:#4A5568;background:#EEF1F6">
+                    Run</td>
+                  <td style="padding:9px 8px;font-size:12px;color:#4A5568">
+                    {run_id} &nbsp;&middot;&nbsp; {event_name}
+                  </td>
+                </tr>
+              </table>
+              <p style="margin-top:20px">
+                <a href="https://github.com/marklangston3-glitch/modelingagent1"
+                   style="background:#002F5F;color:white;padding:10px 20px;
+                          text-decoration:none;border-radius:4px;font-size:13px">
+                  View Updated Models &rarr;
+                </a>
+              </p>
+            </div>
+            <div style="padding:12px 24px;background:#EEF1F6;font-size:10px;color:#B0BAC9">
+              Langston's Financial Intelligence &nbsp;&middot;&nbsp; EDGAR Watchdog
+              &nbsp;&middot;&nbsp; Automated alert — not investment advice.
+            </div>
+          </body></html>"""
+
+          payload = {
+              "personalizations": [{"to": [{"email": to_email}]}],
+              "from": {"email": from_email, "name": "Langston's Financial Intelligence"},
+              "subject": f"Langston's Model Update — New SEC Filing: {tickers}",
+              "content": [{"type": "text/html", "value": html}],
+          }
+
+          req = urllib.request.Request(
+              "https://api.sendgrid.com/v3/mail/send",
+              data=json.dumps(payload).encode(),
+              headers={
+                  "Authorization": f"Bearer {api_key}",
+                  "Content-Type":  "application/json",
+              },
+              method="POST",
+          )
+          try:
+              with urllib.request.urlopen(req, timeout=30) as resp:
+                  print(f"SendGrid: email sent (HTTP {resp.status})")
+          except urllib.error.HTTPError as exc:
+              body = exc.read().decode(errors="replace")
+              print(f"SendGrid HTTP {exc.code}: {body[:400]}")
+              # Non-fatal: print the error but don't fail the workflow step
+          except Exception as exc:
+              print(f"SendGrid error: {exc}")
+          PYEOF
 
       # ── 7. Show tail of log in Actions summary ────────────────────────────────
       - name: Print watchdog log (last 80 lines)

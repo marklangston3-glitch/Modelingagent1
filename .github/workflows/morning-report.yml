@@ -21,6 +21,12 @@ on:
         default: 'false'
         type: choice
         options: ['false', 'true']
+      no_email:
+        description: 'Skip SendGrid email delivery'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
 
 # ── Permissions ───────────────────────────────────────────────────────────────
 permissions:
@@ -58,9 +64,13 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       # ── 4. Generate report ───────────────────────────────────────────────────
+      # SENDGRID_FROM_EMAIL must be a sender verified in your SendGrid account.
+      # If SENDGRID_API_KEY is absent, the script skips email silently.
       - name: Run morning_report.py
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_API_KEY:    ${{ secrets.ANTHROPIC_API_KEY }}
+          SENDGRID_API_KEY:     ${{ secrets.SENDGRID_API_KEY }}
+          SENDGRID_FROM_EMAIL:  ${{ secrets.SENDGRID_FROM_EMAIL }}
         run: |
           FLAGS=""
           if [ -n "${{ github.event.inputs.ticker }}" ]; then
@@ -68,6 +78,9 @@ jobs:
           fi
           if [ "${{ github.event.inputs.no_push }}" = "true" ]; then
             FLAGS="$FLAGS --no-push"
+          fi
+          if [ "${{ github.event.inputs.no_email }}" = "true" ]; then
+            FLAGS="$FLAGS --no-email"
           fi
           python morning_report.py $FLAGS
 
