@@ -1,16 +1,19 @@
 name: Deploy GitHub Pages Dashboard
 
-# Deploys docs/ to GitHub Pages whenever new reports are pushed.
-# One-time setup required in repo Settings → Pages → Source: GitHub Actions
+# Deploys docs/ to GitHub Pages on every push that touches docs/.
+#
+# One-time repo setup (do this once):
+#   Settings → Pages → Source → GitHub Actions
+#
+# After the first successful deploy the dashboard URL will be:
+#   https://marklangston3-glitch.github.io/Modelingagent1/
 
 on:
   push:
     branches:
       - claude/agent-tools-edgar-setup-PimAK
-    paths:
-      - 'docs/**'
 
-  # Allow manual deployment
+  # Run manually from the Actions tab at any time
   workflow_dispatch:
 
 permissions:
@@ -18,42 +21,43 @@ permissions:
   pages: write
   id-token: write
 
-# Only one deployment at a time; cancel in-progress if a newer push arrives
+# Cancel any in-progress deployment when a new one starts
 concurrency:
-  group: "pages"
+  group: pages
   cancel-in-progress: true
 
 jobs:
   deploy:
-    name: Deploy to GitHub Pages
+    name: Deploy docs/ to GitHub Pages
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deploy.outputs.page_url }}
 
     steps:
-      - name: Checkout repo
+      # ── 1. Checkout the working branch ────────────────────────────────────
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: claude/agent-tools-edgar-setup-PimAK
           fetch-depth: 1
 
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v4
-
+      # ── 2. Upload docs/ as the Pages artifact ─────────────────────────────
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: docs/
 
+      # ── 3. Deploy to GitHub Pages ─────────────────────────────────────────
       - name: Deploy to GitHub Pages
-        id: deployment
+        id: deploy
         uses: actions/deploy-pages@v4
 
-      - name: Print deployed URL
+      # ── 4. Print the live URL in the Actions summary ──────────────────────
+      - name: Print dashboard URL
         run: |
-          echo "### GitHub Pages Dashboard" >> $GITHUB_STEP_SUMMARY
+          echo "### ✅ Dashboard deployed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🌐 **URL:** ${{ steps.deployment.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "🌐 **${{ steps.deploy.outputs.page_url }}**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Dashboard auto-updates whenever morning_report.py pushes new \`docs/dashboard_data.json\`." >> $GITHUB_STEP_SUMMARY
+          echo "Dashboard auto-updates every weekday morning when \`morning_report.py\` pushes new \`docs/dashboard_data.json\`." >> $GITHUB_STEP_SUMMARY
