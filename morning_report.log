@@ -155,3 +155,31 @@ https://claude.ai/code/session_014hesikAtm8zzGNsXbYWmGV → [claude/agent-tools-
 2026-05-26 14:46:06,994 [INFO] Reports pushed to origin:claude/agent-tools-edgar-setup-PimAK
 2026-05-26 14:46:06,994 [INFO] Done. Generated: morning_report_2026-05-26.pdf, TEM_morning_report_2026-05-26.pdf, RGTI_morning_report_2026-05-26.pdf, BBAI_morning_report_2026-05-26.pdf, NEE_morning_report_2026-05-26.pdf
 2026-05-26 14:46:06,994 [INFO] ======================================================================
+2026-05-26 23:15:03,153 [INFO] ======================================================================
+2026-05-26 23:15:03,154 [INFO] Langston's Morning Reports started: 2026-05-26T23:15:03.153643+00:00
+2026-05-26 23:15:03,154 [INFO] Tickers: TEM
+2026-05-26 23:15:03,154 [INFO] ─── MACRO DATA ───
+2026-05-26 23:15:03,155 [INFO]   Fetching macro & sector ETF data …
+2026-05-26 23:15:05,452 [ERROR] $^DXY: possibly delisted; no price data found  (period=5d)
+2026-05-26 23:15:05,453 [INFO]   Calling Claude for macro analysis …
+2026-05-26 23:15:17,860 [INFO] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-05-26 23:15:17,882 [INFO]   Macro analysis complete.
+2026-05-26 23:15:17,882 [INFO] ─── TEM (Tempus AI, Inc.) ───
+2026-05-26 23:15:18,238 [INFO]   $46.66  +1.04%  cap=$8.38B
+2026-05-26 23:15:18,510 [INFO]   news=8  filings=0
+2026-05-26 23:15:18,510 [INFO]   Fetching options flow …
+2026-05-26 23:15:18,867 [INFO]   Options: PC=0.32  signal=bearish  unusual=5
+2026-05-26 23:15:18,867 [INFO]   Fetching insider activity (EDGAR Form 4) …
+2026-05-26 23:15:20,025 [INFO]   Insider: signal=bearish  txns=8  sig_buys=0  cluster_sell=True
+2026-05-26 23:15:20,025 [INFO]   Fetching institutional ownership …
+2026-05-26 23:15:20,093 [INFO]   Institutional: 56.6%  signal=bullish  holders=568
+2026-05-26 23:15:20,093 [INFO]   Calling Claude (claude-opus-4-7) for TEM …
+2026-05-26 23:16:02,970 [INFO] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-05-26 23:16:02,971 [INFO]   Rating=Buy  PT=62.0  Conviction=6/10  Headline: TEM: BMS Pact, ArteraAI Launch Reinforce Platform Optionalit
+2026-05-26 23:16:02,971 [INFO]   Generating charts …
+2026-05-26 23:16:03,400 [INFO] ─── Building TEM PDF ───
+2026-05-26 23:16:03,458 [INFO]   PDF: TEM_morning_report_2026-05-26.pdf
+2026-05-26 23:16:03,458 [INFO] ─── Updating GitHub Pages dashboard ───
+2026-05-26 23:16:03,459 [INFO]   Dashboard JSON: docs/dashboard_data.json
+2026-05-26 23:16:03,459 [INFO] Done. Generated: TEM_morning_report_2026-05-26.pdf
+2026-05-26 23:16:03,459 [INFO] ======================================================================
