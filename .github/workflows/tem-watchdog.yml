@@ -68,7 +68,85 @@ jobs:
           if [ -n "${{ github.event.inputs.ticker }}" ]; then FLAGS="$FLAGS --ticker ${{ github.event.inputs.ticker }}"; fi
           python watchdog.py $FLAGS
 
-      # ── 5. Show tail of log in Actions summary ────────────────────────────────
+      # ── 5. Check if rebuild was triggered & set output ────────────────────────
+      - name: Check rebuild summary
+        id: check_rebuild
+        if: always()
+        run: |
+          if [ -f ".rebuild_summary.json" ]; then
+            TRIGGERED=$(python -c "import json; d=json.load(open('.rebuild_summary.json')); print('true' if d.get('triggered') else 'false')" 2>/dev/null || echo "false")
+            TICKERS=$(python -c "import json; d=json.load(open('.rebuild_summary.json')); print(', '.join(d.get('rebuilds',[])) or 'none')" 2>/dev/null || echo "none")
+            FILINGS=$(python -c "
+          import json
+          d=json.load(open('.rebuild_summary.json'))
+          lines=[f\"{f['form']} {f['ticker']} ({f['date']})\" for f in d.get('filings',[])]
+          print('; '.join(lines) or 'forced rebuild')
+          " 2>/dev/null || echo "unknown")
+          else
+            TRIGGERED="false"
+            TICKERS="none"
+            FILINGS="none"
+          fi
+          echo "triggered=$TRIGGERED"  >> $GITHUB_OUTPUT
+          echo "tickers=$TICKERS"      >> $GITHUB_OUTPUT
+          echo "filings=$FILINGS"      >> $GITHUB_OUTPUT
+          echo "Rebuild triggered: $TRIGGERED — Tickers: $TICKERS — Filings: $FILINGS"
+
+      # ── 6. Send email notification (only when filing actually detected) ───────
+      - name: Send model update notification
+        if: steps.check_rebuild.outputs.triggered == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          secure: false
+          username: ${{ secrets.GMAIL_USERNAME }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "Langston's Model Update — New SEC Filing: ${{ steps.check_rebuild.outputs.tickers }}"
+          to: marklangston3@gmail.com
+          from: "Langston's Financial Intelligence <${{ secrets.GMAIL_USERNAME }}>"
+          html_body: |
+            <html>
+            <body style="font-family: Arial, sans-serif; color: #1A202C; max-width: 600px;">
+              <div style="background: #002F5F; padding: 20px; border-bottom: 3px solid #C9A84C;">
+                <h2 style="color: white; margin: 0;">LANGSTON'S FINANCIAL INTELLIGENCE</h2>
+                <p style="color: #A8C8F0; margin: 4px 0 0;">DCF Model Update Alert</p>
+              </div>
+              <div style="padding: 20px; background: white;">
+                <h3 style="color: #002F5F;">New SEC Filing Detected — Models Rebuilt</h3>
+                <table style="width: 100%; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 8px; font-weight: bold; color: #4A5568; background: #EEF1F6;">Tickers Updated</td>
+                    <td style="padding: 8px;"><b>${{ steps.check_rebuild.outputs.tickers }}</b></td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px; font-weight: bold; color: #4A5568; background: #EEF1F6;">Filing(s)</td>
+                    <td style="padding: 8px;">${{ steps.check_rebuild.outputs.filings }}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px; font-weight: bold; color: #4A5568; background: #EEF1F6;">Action Taken</td>
+                    <td style="padding: 8px;">DCF workbook(s) rebuilt from latest XBRL data and pushed to repository.</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px; font-weight: bold; color: #4A5568; background: #EEF1F6;">Run Time</td>
+                    <td style="padding: 8px;">${{ github.run_id }} — ${{ github.event_name }}</td>
+                  </tr>
+                </table>
+                <p style="margin-top: 20px;">
+                  <a href="https://github.com/marklangston3-glitch/modelingagent1"
+                     style="background: #002F5F; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">
+                    View Updated Models →
+                  </a>
+                </p>
+              </div>
+              <div style="padding: 12px 20px; background: #EEF1F6; font-size: 11px; color: #B0BAC9;">
+                This alert is generated automatically by Langston's EDGAR Watchdog.
+                It does not constitute investment advice.
+              </div>
+            </body>
+            </html>
+
+      # ── 7. Show tail of log in Actions summary ────────────────────────────────
       - name: Print watchdog log (last 80 lines)
         if: always()
         run: |
@@ -77,11 +155,13 @@ jobs:
           tail -80 watchdog.log >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-      # ── 6. Upload log as artifact (30-day retention) ──────────────────────────
+      # ── 8. Upload log as artifact (30-day retention) ──────────────────────────
       - name: Upload watchdog log artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: watchdog-log-${{ github.run_id }}
-          path: watchdog.log
+          path: |
+            watchdog.log
+            .rebuild_summary.json
           retention-days: 30

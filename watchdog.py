@@ -35,21 +35,24 @@ from pathlib import Path
 
 import requests
 
-# ── Config ────────────────────────────────────────────────────────────────────
+# ── Config (centralized) ─────────────────────────────────────────────────────
+from config import (
+    REPO_DIR, BRANCH, GIT_REMOTE,
+    load_tickers,
+)
 
+# Build TICKERS dict in the format watchdog expects: {TICKER: {cik, name}}
+_TICKER_CFG = load_tickers()  # {TICKER: {name, exch, cik}}
 TICKERS = {
-    "TEM":  {"cik": "0001717115", "name": "Tempus AI"},
-    "RGTI": {"cik": "0001838359", "name": "Rigetti Computing"},
-    "BBAI": {"cik": "0001836981", "name": "BigBear.ai"},
+    tk: {"cik": v["cik"], "name": v["name"]}
+    for tk, v in _TICKER_CFG.items()
 }
 
 WATCH_FORMS   = {"10-K", "10-Q"}
-REPO_DIR      = Path(__file__).parent.resolve()
 STATE_FILE    = REPO_DIR / ".watchdog_state.json"
 LOG_FILE      = REPO_DIR / "watchdog.log"
 BUILD_SCRIPT  = REPO_DIR / "build_dcf.py"
-BRANCH        = "claude/agent-tools-edgar-setup-PimAK"
-GIT_REMOTE    = "origin"
+REBUILD_SUMMARY = REPO_DIR / ".rebuild_summary.json"
 
 EDGAR_HEADERS = {"User-Agent": "ModelingAgent watchdog@example.com"}
 
@@ -358,9 +361,25 @@ def run(tickers_to_watch: list[str] | None = None, force: bool = False):
         log.info("No rebuilds required this run.")
         # Still save state (updates last_run timestamps)
         save_state(state)
+        # Write "not triggered" summary so email step is clearly skipped
+        REBUILD_SUMMARY.write_text(json.dumps(
+            {"triggered": False, "rebuilds": [], "run_at": now_utc, "filings": []},
+            indent=2,
+        ))
         return
 
     save_state(state)
+
+    # Write rebuild summary so GitHub Actions can detect what triggered
+    summary = {
+        "triggered": True,
+        "rebuilds":  [x.replace("_dcf.xlsx", "") for x in rebuilt_xlsx],
+        "run_at":    now_utc,
+        "filings":   [{"ticker": f.get("ticker","?"), "form": f["form"],
+                       "date": f["date"]} for f in all_filings],
+    }
+    REBUILD_SUMMARY.write_text(json.dumps(summary, indent=2))
+
     log.info("Watchdog run complete.  Rebuilt: %s", ", ".join(rebuilt_xlsx))
     log.info("=" * 70)
 
