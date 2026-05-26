@@ -1,0 +1,59 @@
+name: Deploy GitHub Pages Dashboard
+
+# Deploys docs/ to GitHub Pages whenever new reports are pushed.
+# One-time setup required in repo Settings → Pages → Source: GitHub Actions
+
+on:
+  push:
+    branches:
+      - claude/agent-tools-edgar-setup-PimAK
+    paths:
+      - 'docs/**'
+
+  # Allow manual deployment
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one deployment at a time; cancel in-progress if a newer push arrives
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          ref: claude/agent-tools-edgar-setup-PimAK
+          fetch-depth: 1
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Print deployed URL
+        run: |
+          echo "### GitHub Pages Dashboard" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🌐 **URL:** ${{ steps.deployment.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Dashboard auto-updates whenever morning_report.py pushes new \`docs/dashboard_data.json\`." >> $GITHUB_STEP_SUMMARY

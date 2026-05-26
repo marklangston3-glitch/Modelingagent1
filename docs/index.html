@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Langston's Financial Intelligence — Dashboard</title>
+  <style>
+    :root {
+      --navy:   #002F5F;
+      --blue:   #0E4DA4;
+      --gold:   #C9A84C;
+      --lgray:  #EEF1F6;
+      --mgray:  #B0BAC9;
+      --dgray:  #4A5568;
+      --text:   #1A202C;
+      --line:   #CDD3DF;
+      --bull:   #1A5276;
+      --bear:   #7B241C;
+      --white:  #FFFFFF;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--lgray);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────────── */
+    header {
+      background: var(--navy);
+      border-bottom: 3px solid var(--gold);
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    header h1 {
+      color: var(--white);
+      font-size: 17px;
+      letter-spacing: 1px;
+      font-weight: bold;
+    }
+    header .subtitle {
+      color: #A8C8F0;
+      font-size: 11px;
+      margin-top: 3px;
+    }
+    header .updated {
+      color: var(--mgray);
+      font-size: 11px;
+      text-align: right;
+    }
+
+    /* ── Main container ──────────────────────────────────────────────────── */
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 28px 24px;
+    }
+
+    /* ── Section heading ─────────────────────────────────────────────────── */
+    .section-title {
+      font-size: 11px;
+      font-weight: bold;
+      color: var(--navy);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid var(--navy);
+    }
+
+    /* ── Ticker grid ─────────────────────────────────────────────────────── */
+    .ticker-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin-bottom: 36px;
+    }
+
+    /* ── Ticker card ─────────────────────────────────────────────────────── */
+    .ticker-card {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      transition: box-shadow 0.2s;
+    }
+    .ticker-card:hover { box-shadow: 0 3px 10px rgba(0,0,0,0.13); }
+
+    .card-header {
+      background: var(--navy);
+      padding: 12px 16px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+    .card-ticker {
+      color: var(--white);
+      font-size: 20px;
+      font-weight: bold;
+      line-height: 1;
+    }
+    .card-exch {
+      color: #A8C8F0;
+      font-size: 9px;
+      margin-top: 3px;
+    }
+    .card-company {
+      color: #A8C8F0;
+      font-size: 10px;
+      margin-top: 2px;
+    }
+    .rating-badge {
+      padding: 4px 10px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: bold;
+      color: var(--white);
+      white-space: nowrap;
+    }
+    .rating-buy        { background: var(--bull); }
+    .rating-strong-buy { background: #0B3D2E; }
+    .rating-neutral    { background: var(--dgray); }
+    .rating-sell       { background: var(--bear); }
+    .rating-unknown    { background: var(--mgray); }
+
+    .card-body { padding: 14px 16px; }
+
+    .price-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .price-main {
+      font-size: 22px;
+      font-weight: bold;
+      color: var(--navy);
+    }
+    .price-chg {
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .price-chg.up   { color: var(--bull); }
+    .price-chg.down { color: var(--bear); }
+
+    /* ── Data table ──────────────────────────────────────────────────────── */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+      margin-bottom: 10px;
+    }
+    .data-table td {
+      padding: 4px 0;
+      border-bottom: 1px solid var(--lgray);
+    }
+    .data-table td:first-child { color: var(--dgray); width: 50%; }
+    .data-table td:last-child  { font-weight: bold; text-align: right; }
+
+    /* ── Conviction bar ──────────────────────────────────────────────────── */
+    .conv-row {
+      margin: 10px 0 8px;
+    }
+    .conv-label {
+      font-size: 10px;
+      color: var(--dgray);
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .conv-bar-bg {
+      background: var(--lgray);
+      border-radius: 2px;
+      height: 6px;
+      width: 100%;
+    }
+    .conv-bar-fill {
+      height: 6px;
+      border-radius: 2px;
+      background: var(--navy);
+      transition: width 0.4s;
+    }
+
+    /* ── Smart money badges ──────────────────────────────────────────────── */
+    .smart-money-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .signal-badge {
+      font-size: 9px;
+      padding: 2px 7px;
+      border-radius: 2px;
+      border: 1px solid;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+    .sig-bullish { color: var(--bull); border-color: var(--bull); background: #EBF5FB; }
+    .sig-bearish { color: var(--bear); border-color: var(--bear); background: #FDEDEC; }
+    .sig-neutral { color: var(--dgray); border-color: var(--mgray); background: var(--lgray); }
+
+    /* ── Headline ────────────────────────────────────────────────────────── */
+    .card-headline {
+      font-size: 10.5px;
+      color: var(--text);
+      line-height: 1.5;
+      padding: 8px 0 6px;
+      border-top: 1px solid var(--lgray);
+    }
+
+    /* ── Report links ────────────────────────────────────────────────────── */
+    .report-links {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid var(--lgray);
+    }
+    .report-link {
+      flex: 1;
+      text-align: center;
+      padding: 6px;
+      background: var(--navy);
+      color: var(--white);
+      text-decoration: none;
+      font-size: 10px;
+      border-radius: 3px;
+      transition: background 0.15s;
+    }
+    .report-link:hover { background: var(--blue); }
+    .report-link.secondary {
+      background: var(--lgray);
+      color: var(--navy);
+      border: 1px solid var(--line);
+    }
+    .report-link.secondary:hover { background: var(--line); }
+
+    /* ── Macro strip ─────────────────────────────────────────────────────── */
+    .macro-strip {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 14px 16px;
+      margin-bottom: 28px;
+    }
+    .macro-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .macro-item { text-align: center; }
+    .macro-name {
+      font-size: 9px;
+      color: var(--dgray);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .macro-val {
+      font-size: 14px;
+      font-weight: bold;
+      color: var(--navy);
+      margin: 2px 0;
+    }
+    .macro-chg {
+      font-size: 10px;
+      font-weight: bold;
+    }
+    .macro-chg.up   { color: var(--bull); }
+    .macro-chg.down { color: var(--bear); }
+
+    /* ── Footer ──────────────────────────────────────────────────────────── */
+    footer {
+      background: var(--navy);
+      color: var(--mgray);
+      font-size: 10px;
+      padding: 14px 32px;
+      text-align: center;
+    }
+    footer span { color: var(--gold); font-weight: bold; }
+
+    /* ── Loading / error states ──────────────────────────────────────────── */
+    #loading, #error-msg {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--dgray);
+      font-size: 14px;
+    }
+    #error-msg { color: var(--bear); }
+    .hidden { display: none !important; }
+
+    /* ── Responsive ──────────────────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      header { padding: 14px 16px; }
+      main   { padding: 16px 12px; }
+      .ticker-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>LANGSTON'S FINANCIAL INTELLIGENCE</h1>
+    <div class="subtitle">DAILY EQUITY RESEARCH DASHBOARD &nbsp;·&nbsp; AI-GENERATED</div>
+  </div>
+  <div class="updated" id="last-updated">Loading…</div>
+</header>
+
+<main>
+  <div id="loading">⏳ Loading dashboard data…</div>
+  <div id="error-msg" class="hidden"></div>
+  <div id="dashboard-content" class="hidden">
+
+    <!-- Macro strip -->
+    <div id="macro-section" class="hidden">
+      <div class="section-title">Macro &amp; Rates</div>
+      <div class="macro-strip">
+        <div class="macro-grid" id="macro-grid"></div>
+      </div>
+    </div>
+
+    <!-- Tickers -->
+    <div class="section-title">Portfolio — Current Positions</div>
+    <div class="ticker-grid" id="ticker-grid"></div>
+
+  </div>
+</main>
+
+<footer>
+  <span>Langston's Financial Intelligence</span>
+  &nbsp;·&nbsp; AI-generated &nbsp;·&nbsp; Not investment advice
+  &nbsp;·&nbsp; Data updates weekday mornings
+</footer>
+
+<script>
+// ── Helpers ────────────────────────────────────────────────────────────────
+function ratingClass(r) {
+  if (!r) return "rating-unknown";
+  const l = r.toLowerCase();
+  if (l.includes("strong buy"))  return "rating-strong-buy";
+  if (l.includes("buy"))         return "rating-buy";
+  if (l.includes("sell"))        return "rating-sell";
+  return "rating-neutral";
+}
+
+function signalBadge(sig, label) {
+  if (!sig || sig === "neutral") return `<span class="signal-badge sig-neutral">${label}: neutral</span>`;
+  const cls = sig === "bullish" ? "sig-bullish" : "sig-bearish";
+  return `<span class="signal-badge ${cls}">${label}: ${sig}</span>`;
+}
+
+function fmtPrice(p) {
+  if (p == null || p === 0) return "—";
+  return "$" + Number(p).toFixed(2);
+}
+
+function fmtPct(p) {
+  if (p == null) return "—";
+  const sign = p >= 0 ? "+" : "";
+  return sign + Number(p).toFixed(2) + "%";
+}
+
+function fmtCap(v) {
+  if (!v) return "—";
+  if (v >= 1e12) return "$" + (v/1e12).toFixed(2) + "T";
+  if (v >= 1e9)  return "$" + (v/1e9).toFixed(2) + "B";
+  if (v >= 1e6)  return "$" + (v/1e6).toFixed(0) + "M";
+  return "$" + v.toLocaleString();
+}
+
+function githubRawUrl(path) {
+  return "https://github.com/marklangston3-glitch/Modelingagent1/raw/refs/heads/claude/agent-tools-edgar-setup-PimAK/" + path;
+}
+
+// ── Build ticker card ──────────────────────────────────────────────────────
+function buildCard(ticker, d) {
+  const chgUp   = (d.change_pct || 0) >= 0;
+  const chgCls  = chgUp ? "up" : "down";
+  const chgSign = chgUp ? "▲ +" : "▼ ";
+
+  const convPct = Math.min(100, Math.max(0, (d.conviction_score || 0) * 10));
+  const ratingDate = d.report_date || "";
+
+  // Smart money badges
+  const smSignals = [
+    d.options_signal       ? signalBadge(d.options_signal,       "Options")  : "",
+    d.insider_signal       ? signalBadge(d.insider_signal,       "Insider")  : "",
+    d.institutional_signal ? signalBadge(d.institutional_signal, "Inst.")    : "",
+  ].filter(Boolean).join("");
+
+  // Report links
+  const combinedUrl = d.combined_report_url
+    ? `<a class="report-link" href="${githubRawUrl(d.combined_report_url)}" target="_blank">📄 Full Report</a>`
+    : "";
+  const tickerUrl = d.ticker_report_url
+    ? `<a class="report-link secondary" href="${githubRawUrl(d.ticker_report_url)}" target="_blank">${ticker} Only</a>`
+    : "";
+  const weeklyUrl = d.weekly_report_url
+    ? `<a class="report-link secondary" href="${githubRawUrl(d.weekly_report_url)}" target="_blank">📊 Weekly</a>`
+    : "";
+
+  return `
+<div class="ticker-card">
+  <div class="card-header">
+    <div>
+      <div class="card-ticker">${ticker}</div>
+      <div class="card-exch">${d.exch || ""}</div>
+      <div class="card-company">${d.name || ""}</div>
+    </div>
+    <div>
+      <div class="rating-badge ${ratingClass(d.rating)}">${d.rating || "—"}</div>
+      ${ratingDate ? `<div style="color:#A8C8F0;font-size:9px;text-align:right;margin-top:4px">${ratingDate}</div>` : ""}
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="price-row">
+      <span class="price-main">${fmtPrice(d.price)}</span>
+      <span class="price-chg ${chgCls}">${chgSign}${Math.abs(d.change_pct||0).toFixed(2)}%</span>
+    </div>
+
+    <table class="data-table">
+      <tr><td>1Y Base Target</td><td>${fmtPrice(d.pt_1yr_base)}</td></tr>
+      <tr><td>Price Target</td><td>${fmtPrice(d.price_target)}</td></tr>
+      <tr><td>Market Cap</td><td>${fmtCap(d.market_cap)}</td></tr>
+      <tr><td>52-Week Range</td><td>${fmtPrice(d.wk52_low)} – ${fmtPrice(d.wk52_high)}</td></tr>
+    </table>
+
+    <div class="conv-row">
+      <div class="conv-label">
+        <span>Conviction</span>
+        <span>${d.conviction_score || "—"}/10</span>
+      </div>
+      <div class="conv-bar-bg">
+        <div class="conv-bar-fill" style="width:${convPct}%"></div>
+      </div>
+    </div>
+
+    ${smSignals ? `<div class="smart-money-row">${smSignals}</div>` : ""}
+
+    ${d.headline ? `<div class="card-headline">${d.headline}</div>` : ""}
+
+    ${(combinedUrl || tickerUrl || weeklyUrl) ? `
+    <div class="report-links">
+      ${combinedUrl}${tickerUrl}${weeklyUrl}
+    </div>` : ""}
+  </div>
+</div>`;
+}
+
+// ── Build macro strip ──────────────────────────────────────────────────────
+function buildMacroStrip(rates) {
+  if (!rates || !Object.keys(rates).length) return;
+  const grid = document.getElementById("macro-grid");
+  grid.innerHTML = Object.values(rates).map(r => {
+    const chgCls = (r.chg || 0) >= 0 ? "up" : "down";
+    const chgSign = (r.chg || 0) >= 0 ? "+" : "";
+    return `
+<div class="macro-item">
+  <div class="macro-name">${r.name || ""}</div>
+  <div class="macro-val">${Number(r.value||0).toFixed(2)}</div>
+  <div class="macro-chg ${chgCls}">${chgSign}${Number(r.chg||0).toFixed(4)}</div>
+</div>`;
+  }).join("");
+  document.getElementById("macro-section").classList.remove("hidden");
+}
+
+// ── Load + render ─────────────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const resp = await fetch("dashboard_data.json?t=" + Date.now());
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+
+    // Header timestamp
+    const gen = data.generated || "";
+    document.getElementById("last-updated").textContent =
+      gen ? "Updated: " + new Date(gen).toLocaleString("en-US", {
+        month: "short", day: "numeric", year: "numeric",
+        hour: "2-digit", minute: "2-digit", timeZoneName: "short",
+      }) : "—";
+
+    // Macro strip
+    if (data.macro_rates) buildMacroStrip(data.macro_rates);
+
+    // Ticker cards
+    const grid = document.getElementById("ticker-grid");
+    const tickers = data.tickers || {};
+    if (!Object.keys(tickers).length) {
+      grid.innerHTML = `<p style="color:var(--dgray);font-size:13px">No ticker data available yet. Run the morning report workflow to populate this dashboard.</p>`;
+    } else {
+      grid.innerHTML = Object.entries(tickers)
+        .sort((a, b) => (b[1].conviction_score||0) - (a[1].conviction_score||0))
+        .map(([tk, d]) => buildCard(tk, d))
+        .join("");
+    }
+
+    document.getElementById("loading").classList.add("hidden");
+    document.getElementById("dashboard-content").classList.remove("hidden");
+
+  } catch (err) {
+    document.getElementById("loading").classList.add("hidden");
+    document.getElementById("error-msg").textContent =
+      "⚠ Could not load dashboard data. Run the morning report workflow first. (" + err.message + ")";
+    document.getElementById("error-msg").classList.remove("hidden");
+  }
+}
+
+loadDashboard();
+</script>
+</body>
+</html>

@@ -54,6 +54,11 @@ from config import (
     load_tickers,
 )
 
+# Smart money intelligence modules
+from options_flow          import get_options_flow
+from insider_tracker       import get_insider_activity
+from institutional_tracker import get_institutional_ownership
+
 # ════════════════════════════════════════════════════════════════════════════
 #  RUNTIME CONSTANTS
 # ════════════════════════════════════════════════════════════════════════════
@@ -382,6 +387,9 @@ def generate_analysis(
     ticker: str, company: str, exch: str,
     price_data: dict, news: list, filings: list,
     macro_data: dict, client: anthropic.Anthropic,
+    options_data: dict | None = None,
+    insider_data: dict | None = None,
+    institutional_data: dict | None = None,
 ) -> dict:
     price   = price_data["price"]
     chg     = price_data["change_pct"]
@@ -428,6 +436,9 @@ SEC FILINGS (last 36 hrs):
 
 TOP SECTOR ETF MOVERS (context):
 {sector_lines}
+
+SMART MONEY SIGNALS:
+{_fmt_smart_money(options_data, insider_data, institutional_data)}
 
 OUTPUT EXACTLY this format — no extra text outside these markers:
 
@@ -703,11 +714,102 @@ def _bullets(text: str, style) -> list:
     return items or [Paragraph("• No material updates.", style)]
 
 
+def _sm_table(story: list, rows: list, col_w: float) -> None:
+    """Append a compact 2-col label|value table to story (for smart money sections)."""
+    lw = col_w * 0.42
+    vw = col_w * 0.58
+    val_style = ParagraphStyle(
+        "SMV", fontName="Helvetica-Bold", fontSize=7.5, leading=11,
+        textColor=GS_TEXT, alignment=TA_RIGHT,
+    )
+    lbl_style = ParagraphStyle(
+        "SML", fontName="Helvetica", fontSize=7.5, leading=11,
+        textColor=GS_DGRAY, alignment=TA_LEFT,
+    )
+    tbl_rows = [
+        [Paragraph(xe(str(lbl)), lbl_style), Paragraph(str(val), val_style)]
+        for lbl, val in rows
+    ]
+    tbl = Table(tbl_rows, colWidths=[lw, vw])
+    tbl.setStyle(TableStyle([
+        ("ROWBACKGROUNDS", (0, 0), (-1, -1), [white, GS_LGRAY]),
+        ("TOPPADDING",    (0, 0), (-1, -1), 2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 4),
+        ("GRID",          (0, 0), (-1, -1), 0.2, GS_LINE),
+    ]))
+    story.append(tbl)
+
+
+def _fmt_smart_money(
+    options_data: dict | None,
+    insider_data: dict | None,
+    institutional_data: dict | None,
+) -> str:
+    """Format smart money data as prompt context for Claude."""
+    lines = []
+    opt  = options_data  or {}
+    ins  = insider_data  or {}
+    inst = institutional_data or {}
+
+    lines.append("OPTIONS FLOW (near-term, ~60 days):")
+    lines.append(
+        f"  Put/Call Ratio: {opt.get('put_call_ratio', 0):.2f}"
+        f"  |  Calls: {opt.get('total_calls', 0):,}"
+        f"  |  Puts: {opt.get('total_puts', 0):,}"
+        f"  |  Signal: {opt.get('flow_signal', 'n/a').upper()}"
+    )
+    for u in opt.get("unusual", [])[:3]:
+        lines.append(
+            f"  UNUSUAL {u['type'].upper()} ${u['strike']} exp {u['expiry'][:7]}"
+            f" — {u['volume']:,} contracts ({u['vol_oi_ratio']:.1f}x OI)"
+            f" ${u['notional']:,} notional"
+        )
+    if not opt.get("unusual"):
+        lines.append("  No unusual options activity.")
+
+    lines.append("INSIDER TRANSACTIONS (last 30 days):")
+    lines.append(
+        f"  Net Signal: {ins.get('net_signal','n/a').upper()}"
+        f"  |  Significant Buys: {ins.get('significant_buys', 0)}"
+        f"  |  Cluster Selling: {ins.get('cluster_selling', False)}"
+    )
+    for t in ins.get("transactions", [])[:4]:
+        lines.append(
+            f"  {t['date']} {t['name']} ({t['title']}): "
+            f"{t['type'].upper()} {t['shares']:,} @ ${t['price']:.2f}"
+            f" = ${t['value']:,.0f}"
+            + ("  <- SIGNIFICANT" if t.get("significant") else "")
+        )
+    if not ins.get("transactions"):
+        lines.append("  No insider transactions in the past 30 days.")
+
+    lines.append("INSTITUTIONAL OWNERSHIP:")
+    lines.append(
+        f"  Institutions: {inst.get('pct_institutional', 0):.1f}%"
+        f"  |  Insiders: {inst.get('pct_insiders', 0):.1f}%"
+        f"  |  Holders: {inst.get('holder_count', 0):,}"
+        f"  |  Signal: {inst.get('smart_money_signal', 'n/a').upper()}"
+    )
+    for h in inst.get("top_holders", [])[:3]:
+        lines.append(f"  {h['name']}: {h['pct_out']:.1f}% ({h['shares']:,} sh)")
+    if not inst.get("top_holders"):
+        lines.append("  No institutional holder data.")
+
+    return "\n".join(lines)
+
+
 # ════════════════════════════════════════════════════════════════════════════
 #  PAGE 1 — LEFT COLUMN
 # ════════════════════════════════════════════════════════════════════════════
 
-def build_left_story(analysis: dict, news: list, filings: list, st: dict) -> list:
+def build_left_story(
+    analysis: dict, news: list, filings: list, st: dict,
+    options_data: dict | None = None,
+    insider_data: dict | None = None,
+    institutional_data: dict | None = None,
+) -> list:
     W     = LCOL_W
     story = [Spacer(1, 3)]
 
@@ -763,6 +865,91 @@ def build_left_story(analysis: dict, news: list, filings: list, st: dict) -> lis
             f'<b>{title}</b>  <font color="#666666" size="7">{pub} · {tm}</font>',
             news_style,
         ))
+
+    # ── Options Intelligence ───────────────────────────────────────────────
+    if options_data and not options_data.get("error"):
+        story.append(Spacer(1, 8))
+        story.append(_sec_hdr_table("Options Intelligence", W, st))
+        story.append(Spacer(1, 3))
+        opt = options_data
+        sig = opt.get("flow_signal", "neutral")
+        sig_col = "#1A5276" if sig == "bullish" else "#7B241C" if sig == "bearish" else "#4A5568"
+        opt_rows: list = [
+            ["Put/Call Ratio", f'{opt.get("put_call_ratio", 0):.2f}'],
+            ["Call Vol / Put Vol",
+             f'{opt.get("total_calls", 0):,} / {opt.get("total_puts", 0):,}'],
+            ["Flow Signal",
+             f'<font color="{sig_col}"><b>{sig.upper()}</b></font>'],
+        ]
+        unusual = opt.get("unusual", [])
+        if unusual:
+            u = unusual[0]
+            opt_rows.append([
+                "Largest Unusual",
+                xe(f'{u["type"].upper()} ${u["strike"]} {u["expiry"][:7]} '
+                   f'({u["vol_oi_ratio"]:.1f}x OI)'),
+            ])
+        _sm_table(story, opt_rows, W)
+        if opt.get("summary"):
+            story.append(Spacer(1, 2))
+            story.append(Paragraph(xe(opt["summary"]), st["body_sm"]))
+
+    # ── Insider Activity ───────────────────────────────────────────────────
+    if insider_data and not insider_data.get("error"):
+        story.append(Spacer(1, 8))
+        story.append(_sec_hdr_table("Insider Activity  (30 Days)", W, st))
+        story.append(Spacer(1, 3))
+        ins = insider_data
+        sig = ins.get("net_signal", "neutral")
+        sig_col = "#1A5276" if sig == "bullish" else "#7B241C" if sig == "bearish" else "#4A5568"
+        ins_rows: list = [
+            ["Net Signal",
+             f'<font color="{sig_col}"><b>{sig.upper()}</b></font>'],
+            ["Significant Buys (>$100K)", str(ins.get("significant_buys", 0))],
+            ["Cluster Selling",
+             '<font color="#7B241C"><b>YES</b></font>'
+             if ins.get("cluster_selling") else "No"],
+            ["Transactions", str(len(ins.get("transactions", [])))],
+        ]
+        txns = ins.get("transactions", [])
+        if txns:
+            t = txns[0]
+            ins_rows.append([
+                f'{t["type"].upper()}  {t["date"][:10]}',
+                xe(f'{t["name"]} ({t["title"][:14]}): ${t["value"]:,.0f}'),
+            ])
+        _sm_table(story, ins_rows, W)
+        if ins.get("summary"):
+            story.append(Spacer(1, 2))
+            story.append(Paragraph(xe(ins["summary"]), st["body_sm"]))
+
+    # ── Institutional Ownership ────────────────────────────────────────────
+    if institutional_data and not institutional_data.get("error"):
+        story.append(Spacer(1, 8))
+        story.append(_sec_hdr_table("Institutional Ownership", W, st))
+        story.append(Spacer(1, 3))
+        inst = institutional_data
+        sig = inst.get("smart_money_signal", "neutral")
+        sig_col = "#1A5276" if sig == "bullish" else "#7B241C" if sig == "bearish" else "#4A5568"
+        inst_rows: list = [
+            ["Institutions",
+             f'{inst.get("pct_institutional", 0):.1f}%'],
+            ["Insiders",
+             f'{inst.get("pct_insiders", 0):.1f}%'],
+            ["# Holders", f'{inst.get("holder_count", 0):,}'],
+            ["Smart Money",
+             f'<font color="{sig_col}"><b>{sig.upper()}</b></font>'],
+        ]
+        for h in inst.get("top_holders", [])[:2]:
+            inst_rows.append([
+                xe(h["name"][:26]),
+                f'{h["pct_out"]:.1f}%',
+            ])
+        _sm_table(story, inst_rows, W)
+        if inst.get("summary"):
+            story.append(Spacer(1, 2))
+            story.append(Paragraph(xe(inst["summary"]), st["body_sm"]))
+
     return story
 
 
@@ -1488,7 +1675,12 @@ def build_combined_pdf(
         c.setLineWidth(0.4)
         c.line(RCOL_X - 6, BODY_TOP - 2, RCOL_X - 6, BODY_BOT + 2)
         # Left column
-        left_story  = build_left_story(analysis, news, filings, st)
+        left_story  = build_left_story(
+            analysis, news, filings, st,
+            options_data=td.get("options"),
+            insider_data=td.get("insider"),
+            institutional_data=td.get("institutional"),
+        )
         left_frame  = Frame(LCOL_X, BODY_BOT, LCOL_W, BODY_H,
                             leftPadding=0, rightPadding=6, topPadding=0, bottomPadding=0,
                             showBoundary=0)
@@ -1605,7 +1797,12 @@ def build_ticker_pdf(td: dict) -> Path:
     c.line(RCOL_X - 6, BODY_TOP - 2, RCOL_X - 6, BODY_BOT + 2)
     left_frame = Frame(LCOL_X, BODY_BOT, LCOL_W, BODY_H,
                        leftPadding=0, rightPadding=6, topPadding=0, bottomPadding=0, showBoundary=0)
-    left_frame.addFromList(build_left_story(analysis, news, filings, st), c)
+    left_frame.addFromList(build_left_story(
+        analysis, news, filings, st,
+        options_data=td.get("options"),
+        insider_data=td.get("insider"),
+        institutional_data=td.get("institutional"),
+    ), c)
     right_frame = Frame(RCOL_X, BODY_BOT, RCOL_W, BODY_H,
                         leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0, showBoundary=0)
     right_frame.addFromList(build_right_story(analysis, price_data, charts, st), c)
@@ -1933,15 +2130,17 @@ def send_email_report(
 #  GIT PUSH
 # ════════════════════════════════════════════════════════════════════════════
 
-def git_push_reports(pdf_paths: list[Path]) -> bool:
+def git_push_reports(pdf_paths: list[Path], extra_files: list[Path] | None = None) -> bool:
     rels     = [str(p.relative_to(REPO_DIR)) for p in pdf_paths]
+    if extra_files:
+        rels += [str(p.relative_to(REPO_DIR)) for p in extra_files]
     date_tag = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     cmds = [
         ["git", "add"] + rels,
         ["git", "commit", "-m",
          f"Morning reports {date_tag} — {', '.join(p.stem for p in pdf_paths)}\n\n"
          f"Langston's Financial Intelligence equity research PDFs.\n"
-         f"Front page + per-ticker analysis (2pp each).\n\n"
+         f"Front page + per-ticker analysis (2pp each). Dashboard data updated.\n\n"
          "https://claude.ai/code/session_014hesikAtm8zzGNsXbYWmGV"],
         ["git", "push", "-u", GIT_REMOTE, BRANCH],
     ]
@@ -1952,6 +2151,73 @@ def git_push_reports(pdf_paths: list[Path]) -> bool:
             return False
         log.info("$ %s → %s", " ".join(cmd), r.stdout.strip() or r.stderr.strip())
     return True
+
+
+def write_dashboard_json(all_ticker_data: list[dict], macro_data: dict) -> Path:
+    """Write docs/dashboard_data.json for the GitHub Pages dashboard."""
+    import glob as _glob
+    DOCS_DIR = REPO_DIR / "docs"
+    DOCS_DIR.mkdir(exist_ok=True)
+
+    date_tag = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    tickers_json: dict = {}
+
+    for td in all_ticker_data:
+        tk   = td["ticker"]
+        pd_  = td["price_data"]
+        an   = td["analysis"]
+        opt  = td.get("options")  or {}
+        ins  = td.get("insider")  or {}
+        inst = td.get("institutional") or {}
+
+        # Locate latest weekly PDF (if any)
+        weekly_files = sorted(_glob.glob(str(REPORTS_DIR / "weekly_report_*.pdf")))
+        weekly_rel   = ("reports/" + Path(weekly_files[-1]).name) if weekly_files else None
+
+        tickers_json[tk] = {
+            "name":       td["company"],
+            "exch":       td["exch"],
+            "price":      pd_.get("price"),
+            "change_pct": pd_.get("change_pct"),
+            "wk52_high":  pd_.get("wk52_high"),
+            "wk52_low":   pd_.get("wk52_low"),
+            "market_cap": pd_.get("market_cap"),
+            "rating":           an.get("rating"),
+            "conviction_score": an.get("conviction_score"),
+            "price_target":     an.get("price_target"),
+            "pt_1yr_base":      an.get("price_targets", {}).get("1yr", {}).get("base"),
+            "headline":         an.get("headline"),
+            "report_date":      date_tag,
+            "combined_report_url": f"reports/morning_report_{date_tag}.pdf",
+            "ticker_report_url":   f"reports/{tk}_morning_report_{date_tag}.pdf",
+            "weekly_report_url":   weekly_rel,
+            # Smart money signals for dashboard badges
+            "options_signal":       opt.get("flow_signal"),
+            "insider_signal":       ins.get("net_signal"),
+            "institutional_signal": inst.get("smart_money_signal"),
+        }
+
+    # Macro rates
+    macro_rates: dict = {}
+    for rt, v in macro_data.get("rates", {}).items():
+        macro_rates[rt] = {
+            "name":  v["name"],
+            "value": v["value"],
+            "chg":   v.get("chg", 0),
+        }
+
+    payload = {
+        "_comment":   "Auto-generated by morning_report.py — do not edit manually",
+        "generated":  datetime.now(timezone.utc).isoformat(),
+        "report_date": date_tag,
+        "macro_rates": macro_rates,
+        "tickers":    tickers_json,
+    }
+
+    out_path = DOCS_DIR / "dashboard_data.json"
+    out_path.write_text(json.dumps(payload, indent=2, default=str))
+    log.info("  Dashboard JSON: %s", out_path.relative_to(REPO_DIR))
+    return out_path
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -2006,10 +2272,37 @@ def main():
         filings = get_overnight_filings(ticker, state)
         log.info("  news=%d  filings=%d", len(news), len(filings))
 
+        # ── Smart money data (collected before Claude call so it enriches the prompt) ──
+        cik = meta.get("cik", "")
+        log.info("  Fetching options flow …")
+        options_data = get_options_flow(ticker)
+        log.info("  Options: PC=%.2f  signal=%s  unusual=%d",
+                 options_data.get("put_call_ratio", 0),
+                 options_data.get("flow_signal", "n/a"),
+                 len(options_data.get("unusual", [])))
+
+        log.info("  Fetching insider activity (EDGAR Form 4) …")
+        insider_data = get_insider_activity(ticker, cik=cik, days_back=30)
+        log.info("  Insider: signal=%s  txns=%d  sig_buys=%d  cluster_sell=%s",
+                 insider_data.get("net_signal", "n/a"),
+                 len(insider_data.get("transactions", [])),
+                 insider_data.get("significant_buys", 0),
+                 insider_data.get("cluster_selling", False))
+
+        log.info("  Fetching institutional ownership …")
+        institutional_data = get_institutional_ownership(ticker)
+        log.info("  Institutional: %.1f%%  signal=%s  holders=%d",
+                 institutional_data.get("pct_institutional", 0),
+                 institutional_data.get("smart_money_signal", "n/a"),
+                 institutional_data.get("holder_count", 0))
+
         analysis = generate_analysis(
             ticker, company, exch,
             price_data, news, filings,
             macro_data, client,
+            options_data=options_data,
+            insider_data=insider_data,
+            institutional_data=institutional_data,
         )
         log.info("  Rating=%s  PT=%s  Conviction=%s/10  Headline: %s",
                  analysis.get("rating"),
@@ -2024,14 +2317,17 @@ def main():
         }
 
         all_ticker_data.append({
-            "ticker":     ticker,
-            "company":    company,
-            "exch":       exch,
-            "price_data": price_data,
-            "analysis":   analysis,
-            "news":       news,
-            "filings":    filings,
-            "charts":     charts,
+            "ticker":        ticker,
+            "company":       company,
+            "exch":          exch,
+            "price_data":    price_data,
+            "analysis":      analysis,
+            "news":          news,
+            "filings":       filings,
+            "charts":        charts,
+            "options":       options_data,
+            "insider":       insider_data,
+            "institutional": institutional_data,
         })
 
     if not all_ticker_data:
@@ -2053,14 +2349,18 @@ def main():
         p = build_ticker_pdf(td)
         pdf_list.append(p)
 
-    # ── 4. Push ───────────────────────────────────────────────────────────────
+    # ── 4. Dashboard JSON ──────────────────────────────────────────────────────
+    log.info("─── Updating GitHub Pages dashboard ───")
+    dash_path = write_dashboard_json(all_ticker_data, macro_data)
+
+    # ── 5. Push ───────────────────────────────────────────────────────────────
     if not args.no_push:
-        if git_push_reports(pdf_list):
-            log.info("Reports pushed to %s:%s", GIT_REMOTE, BRANCH)
+        if git_push_reports(pdf_list, extra_files=[dash_path]):
+            log.info("Reports + dashboard pushed to %s:%s", GIT_REMOTE, BRANCH)
         else:
             log.warning("Push failed — PDFs saved locally in reports/")
 
-    # ── 5. Email ──────────────────────────────────────────────────────────────
+    # ── 6. Email ──────────────────────────────────────────────────────────────
     if not args.no_email:
         log.info("─── Sending email report ───")
         ok = send_email_report(pdf_list, all_ticker_data, macro_text)
