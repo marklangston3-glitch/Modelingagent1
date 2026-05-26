@@ -1,0 +1,9 @@
+# Langston's Financial Intelligence — Report Recipients
+# ──────────────────────────────────────────────────────
+# One email address per line.
+# Lines starting with # are ignored (comments).
+# Blank lines are ignored.
+#
+# To add a recipient: append their address and push — no code changes needed.
+marklangston3@gmail.com
+Langstonroy@aol.com

@@ -24,11 +24,28 @@ import sys
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone
+from pathlib import Path
 
 SENDGRID_FROM = "marklangston3@gmail.com"
 SENDGRID_NAME = "Langston's Financial Intelligence"
-SENDGRID_TO   = ["marklangston3@gmail.com", "Langstonroy@aol.com"]
 API_BASE      = "https://api.sendgrid.com/v3"
+
+# Recipients loaded from recipients.txt so no code change is needed to add addresses.
+_RECIPIENTS_FILE = Path(__file__).parent.resolve() / "recipients.txt"
+
+
+def _load_recipients() -> list[str]:
+    if not _RECIPIENTS_FILE.exists():
+        return [SENDGRID_FROM]
+    result = [
+        ln.strip()
+        for ln in _RECIPIENTS_FILE.read_text().splitlines()
+        if ln.strip() and not ln.strip().startswith("#")
+    ]
+    return result or [SENDGRID_FROM]
+
+
+SENDGRID_TO: list[str] = _load_recipients()
 
 
 # ── Low-level API helper ──────────────────────────────────────────────────────

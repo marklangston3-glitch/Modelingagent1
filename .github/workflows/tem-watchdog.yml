@@ -106,7 +106,15 @@ jobs:
 
           api_key    = os.environ.get("SENDGRID_API_KEY", "").strip()
           from_email = "marklangston3@gmail.com"
-          to_emails  = ["marklangston3@gmail.com", "Langstonroy@aol.com"]
+          # Read recipients from recipients.txt — no code change needed to add addresses.
+          try:
+              to_emails = [
+                  ln.strip() for ln in open("recipients.txt")
+                  if ln.strip() and not ln.strip().startswith("#")
+              ]
+          except FileNotFoundError:
+              to_emails = []
+          to_emails = to_emails or [from_email]
           tickers    = "${{ steps.check_rebuild.outputs.tickers }}"
           filings    = "${{ steps.check_rebuild.outputs.filings }}"
           run_id     = "${{ github.run_id }}"

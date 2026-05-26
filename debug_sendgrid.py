@@ -21,11 +21,28 @@ import sys
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone
+from pathlib import Path
 
-API_BASE   = "https://api.sendgrid.com/v3"
-FROM_EMAIL = "marklangston3@gmail.com"
-FROM_NAME  = "Langston's Financial Intelligence"
-TO_EMAILS  = ["marklangston3@gmail.com", "Langstonroy@aol.com"]
+API_BASE        = "https://api.sendgrid.com/v3"
+FROM_EMAIL      = "marklangston3@gmail.com"
+FROM_NAME       = "Langston's Financial Intelligence"
+REPO_DIR        = Path(__file__).parent.resolve()
+RECIPIENTS_FILE = REPO_DIR / "recipients.txt"
+
+
+def _load_recipients() -> list[str]:
+    """Read recipients.txt — one address per line, # lines ignored."""
+    if not RECIPIENTS_FILE.exists():
+        return [FROM_EMAIL]
+    result = [
+        ln.strip()
+        for ln in RECIPIENTS_FILE.read_text().splitlines()
+        if ln.strip() and not ln.strip().startswith("#")
+    ]
+    return result or [FROM_EMAIL]
+
+
+TO_EMAILS = _load_recipients()
 
 
 def sep(title: str = "") -> None:

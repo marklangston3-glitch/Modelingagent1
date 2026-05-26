@@ -15,16 +15,36 @@ FIRM_NAME_U    = FIRM_NAME.upper()                        # header band text
 FIRM_NAME_FULL = "Langston's Financial Intelligence"
 EMAIL          = "marklangston3@gmail.com"
 
-# ── Email Recipients (all report and alert emails go to every address) ────────
-RECIPIENTS: list[str] = [
-    "marklangston3@gmail.com",
-    "Langstonroy@aol.com",
-]
-
 # ── Repository ────────────────────────────────────────────────────────────────
 REPO_DIR   = Path(__file__).parent.resolve()
 BRANCH     = "claude/agent-tools-edgar-setup-PimAK"
 GIT_REMOTE = "origin"
+
+# ── Email Recipients ──────────────────────────────────────────────────────────
+# Loaded from recipients.txt at import time.
+# To add a recipient: add their address to recipients.txt and push.
+# No code changes needed.
+RECIPIENTS_FILE = REPO_DIR / "recipients.txt"
+
+
+def load_recipients() -> list[str]:
+    """Return the list of report recipients from recipients.txt.
+
+    File format: one email address per line; lines starting with '#' and
+    blank lines are ignored.  Falls back to [EMAIL] if the file is missing
+    or empty so delivery never silently drops to zero recipients.
+    """
+    if not RECIPIENTS_FILE.exists():
+        return [EMAIL]
+    result = [
+        line.strip()
+        for line in RECIPIENTS_FILE.read_text().splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    return result or [EMAIL]
+
+
+RECIPIENTS: list[str] = load_recipients()
 
 # ── Claude Model ──────────────────────────────────────────────────────────────
 ANTHROPIC_MODEL = "claude-opus-4-7"
