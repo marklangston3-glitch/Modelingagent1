@@ -91,3 +91,67 @@
 2026-05-25 16:54:58,840 [INFO]   PDF: BBAI_morning_report_2026-05-25.pdf
 2026-05-25 16:54:58,840 [INFO] Done. Generated: TEM_morning_report_2026-05-25.pdf, RGTI_morning_report_2026-05-25.pdf, BBAI_morning_report_2026-05-25.pdf
 2026-05-25 16:54:58,840 [INFO] ======================================================================
+2026-05-26 14:43:01,296 [INFO] ======================================================================
+2026-05-26 14:43:01,296 [INFO] Langston's Morning Reports started: 2026-05-26T14:43:01.296070+00:00
+2026-05-26 14:43:01,296 [INFO] Tickers: TEM, RGTI, BBAI, NEE
+2026-05-26 14:43:01,297 [INFO] ─── MACRO DATA ───
+2026-05-26 14:43:01,297 [INFO]   Fetching macro & sector ETF data …
+2026-05-26 14:43:05,406 [ERROR] $^DXY: possibly delisted; no price data found  (period=5d)
+2026-05-26 14:43:05,407 [INFO]   Calling Claude for macro analysis …
+2026-05-26 14:43:18,436 [INFO] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-05-26 14:43:18,462 [INFO]   Macro analysis complete.
+2026-05-26 14:43:18,462 [INFO] ─── TEM (Tempus AI, Inc.) ───
+2026-05-26 14:43:18,837 [INFO]   $47.71  +3.31%  cap=$8.57B
+2026-05-26 14:43:19,168 [INFO]   news=8  filings=0
+2026-05-26 14:43:19,168 [INFO]   Calling Claude (claude-opus-4-7) for TEM …
+2026-05-26 14:43:59,782 [INFO] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-05-26 14:43:59,783 [INFO]   Rating=Buy  PT=65.0  Conviction=7/10  Headline: TEM: BMS Partnership Deepens, ArteraAI Launch Validates Plat
+2026-05-26 14:43:59,783 [INFO]   Generating charts …
+2026-05-26 14:44:00,396 [INFO] ─── RGTI (Rigetti Computing, Inc.) ───
+2026-05-26 14:44:00,674 [INFO]   $24.50  -7.25%  cap=$8.14B
+2026-05-26 14:44:00,912 [INFO]   news=8  filings=0
+2026-05-26 14:44:00,912 [INFO]   Calling Claude (claude-opus-4-7) for RGTI …
+2026-05-26 14:44:42,018 [INFO] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-05-26 14:44:42,019 [INFO]   Rating=Hold  PT=28.0  Conviction=5/10  Headline: RGTI: Quantum Rally Extends on $2B Federal Funding; Trim Str
+2026-05-26 14:44:42,019 [INFO]   Generating charts …
+2026-05-26 14:44:42,322 [INFO] ─── BBAI (BigBear.ai Holdings, Inc.) ───
+2026-05-26 14:44:42,623 [INFO]   $4.20  +0.48%  cap=$2.01B
+2026-05-26 14:44:42,828 [INFO]   news=8  filings=0
+2026-05-26 14:44:42,828 [INFO]   Calling Claude (claude-opus-4-7) for BBAI …
+2026-05-26 14:45:23,965 [INFO] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-05-26 14:45:23,966 [INFO]   Rating=Neutral  PT=4.5  Conviction=5/10  Headline: BBAI: Panama Win Offsets Restatement Overhang; Reiterate Neu
+2026-05-26 14:45:23,966 [INFO]   Generating charts …
+2026-05-26 14:45:24,369 [INFO] ─── NEE (NEE) ───
+2026-05-26 14:45:25,136 [INFO]   $87.70  -0.95%  cap=$182.92B
+2026-05-26 14:45:25,605 [INFO]   news=8  filings=0
+2026-05-26 14:45:25,605 [INFO]   Calling Claude (claude-opus-4-7) for NEE …
+2026-05-26 14:46:04,437 [INFO] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+2026-05-26 14:46:04,438 [INFO]   Rating=Buy  PT=102.0  Conviction=7/10  Headline: NEE: Morgan Stanley Trims PT But Maintains Bullish View; Rei
+2026-05-26 14:46:04,438 [INFO]   Generating charts …
+2026-05-26 14:46:04,818 [INFO] ─── Building combined PDF ───
+2026-05-26 14:46:05,044 [INFO]   Combined PDF: morning_report_2026-05-26.pdf
+2026-05-26 14:46:05,044 [INFO] ─── Building TEM PDF ───
+2026-05-26 14:46:05,099 [INFO]   PDF: TEM_morning_report_2026-05-26.pdf
+2026-05-26 14:46:05,099 [INFO] ─── Building RGTI PDF ───
+2026-05-26 14:46:05,223 [INFO]   PDF: RGTI_morning_report_2026-05-26.pdf
+2026-05-26 14:46:05,223 [INFO] ─── Building BBAI PDF ───
+2026-05-26 14:46:05,279 [INFO]   PDF: BBAI_morning_report_2026-05-26.pdf
+2026-05-26 14:46:05,279 [INFO] ─── Building NEE PDF ───
+2026-05-26 14:46:05,332 [INFO]   PDF: NEE_morning_report_2026-05-26.pdf
+2026-05-26 14:46:05,355 [INFO] $ git add reports/morning_report_2026-05-26.pdf reports/TEM_morning_report_2026-05-26.pdf reports/RGTI_morning_report_2026-05-26.pdf reports/BBAI_morning_report_2026-05-26.pdf reports/NEE_morning_report_2026-05-26.pdf → 
+2026-05-26 14:46:05,473 [INFO] $ git commit -m Morning reports 2026-05-26 — morning_report_2026-05-26, TEM_morning_report_2026-05-26, RGTI_morning_report_2026-05-26, BBAI_morning_report_2026-05-26, NEE_morning_report_2026-05-26
+
+Langston's Financial Intelligence equity research PDFs.
+Front page + per-ticker analysis (2pp each).
+
+https://claude.ai/code/session_014hesikAtm8zzGNsXbYWmGV → [claude/agent-tools-edgar-setup-PimAK 14a679d] Morning reports 2026-05-26 — morning_report_2026-05-26, TEM_morning_report_2026-05-26, RGTI_morning_report_2026-05-26, BBAI_morning_report_2026-05-26, NEE_morning_report_2026-05-26
+ 5 files changed, 899 insertions(+)
+ create mode 100644 reports/BBAI_morning_report_2026-05-26.pdf
+ create mode 100644 reports/NEE_morning_report_2026-05-26.pdf
+ create mode 100644 reports/RGTI_morning_report_2026-05-26.pdf
+ create mode 100644 reports/TEM_morning_report_2026-05-26.pdf
+ create mode 100644 reports/morning_report_2026-05-26.pdf
+2026-05-26 14:46:06,994 [INFO] $ git push -u origin claude/agent-tools-edgar-setup-PimAK → branch 'claude/agent-tools-edgar-setup-PimAK' set up to track 'origin/claude/agent-tools-edgar-setup-PimAK'.
+2026-05-26 14:46:06,994 [INFO] Reports pushed to origin:claude/agent-tools-edgar-setup-PimAK
+2026-05-26 14:46:06,994 [INFO] Done. Generated: morning_report_2026-05-26.pdf, TEM_morning_report_2026-05-26.pdf, RGTI_morning_report_2026-05-26.pdf, BBAI_morning_report_2026-05-26.pdf, NEE_morning_report_2026-05-26.pdf
+2026-05-26 14:46:06,994 [INFO] ======================================================================
