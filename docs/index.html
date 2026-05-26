@@ -278,6 +278,120 @@
     .macro-chg.up   { color: var(--bull); }
     .macro-chg.down { color: var(--bear); }
 
+    /* ── Prospect cards ─────────────────────────────────────────────────── */
+    .prospect-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+      margin-bottom: 36px;
+    }
+
+    .prospect-card {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      transition: box-shadow 0.2s;
+    }
+    .prospect-card:hover { box-shadow: 0 3px 10px rgba(0,0,0,0.13); }
+
+    .prospect-header {
+      background: #0E3A6A;
+      padding: 10px 14px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .prospect-rank {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--gold);
+      color: var(--navy);
+      font-size: 15px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .prospect-ticker {
+      color: var(--white);
+      font-size: 18px;
+      font-weight: bold;
+      line-height: 1;
+    }
+    .prospect-company {
+      color: #A8C8F0;
+      font-size: 10px;
+      margin-top: 2px;
+    }
+    .prospect-theme {
+      color: var(--gold);
+      font-size: 9px;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-top: 3px;
+    }
+    .prospect-score-badge {
+      padding: 3px 8px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: bold;
+      background: var(--gold);
+      color: var(--navy);
+      white-space: nowrap;
+      align-self: flex-start;
+    }
+    .prospect-body { padding: 12px 14px; }
+
+    .prospect-thesis {
+      font-size: 11px;
+      color: var(--text);
+      line-height: 1.55;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--lgray);
+    }
+
+    .prospect-metrics {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-size: 10px;
+      color: var(--dgray);
+      margin-bottom: 8px;
+    }
+    .prospect-metric strong { color: var(--navy); }
+
+    .prospect-signals {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    .prospect-action {
+      font-size: 10.5px;
+      font-weight: bold;
+      color: #0E4DA4;
+      padding-top: 6px;
+      border-top: 1px solid var(--lgray);
+    }
+
+    .no-prospects {
+      color: var(--dgray);
+      font-size: 13px;
+      padding: 24px;
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      margin-bottom: 36px;
+    }
+
     /* ── Footer ──────────────────────────────────────────────────────────── */
     footer {
       background: var(--navy);
@@ -332,6 +446,12 @@
     <!-- Tickers -->
     <div class="section-title">Portfolio — Current Positions</div>
     <div class="ticker-grid" id="ticker-grid"></div>
+
+    <!-- Prospects -->
+    <div id="prospects-section" class="hidden">
+      <div class="section-title">Watchlist Suggestions — Daily Prospect Ranking</div>
+      <div class="prospect-grid" id="prospect-grid"></div>
+    </div>
 
   </div>
 </main>
@@ -457,6 +577,42 @@ function buildCard(ticker, d) {
 </div>`;
 }
 
+// ── Build prospect card ────────────────────────────────────────────────────
+function buildProspectCard(p) {
+  const score   = p.score != null ? Number(p.score).toFixed(1) : "—";
+  const price   = p.price   != null ? "$" + Number(p.price).toFixed(2) : "—";
+  const ret1m   = p.ret_1m  != null ? (p.ret_1m >= 0 ? "+" : "") + Number(p.ret_1m).toFixed(1) + "% 1M" : "";
+  const cap     = fmtCap(p.market_cap);
+  const psRatio = p.ps_ratio != null ? "P/S " + Number(p.ps_ratio).toFixed(1) : "";
+
+  const smSignals = [
+    p.options_signal       ? signalBadge(p.options_signal,       "OPT")  : "",
+    p.insider_signal       ? signalBadge(p.insider_signal,       "INS")  : "",
+    p.institutional_signal ? signalBadge(p.institutional_signal, "INST") : "",
+  ].filter(Boolean).join("");
+
+  const metricParts = [price, ret1m, cap, psRatio].filter(Boolean);
+
+  return `
+<div class="prospect-card">
+  <div class="prospect-header">
+    <div class="prospect-rank">${p.rank || "?"}</div>
+    <div style="flex:1;padding-left:10px">
+      <div class="prospect-ticker">${p.ticker || "—"}</div>
+      <div class="prospect-company">${p.company || ""}</div>
+      <div class="prospect-theme">${p.theme || ""}</div>
+    </div>
+    <div class="prospect-score-badge">Score: ${score}</div>
+  </div>
+  <div class="prospect-body">
+    ${p.thesis ? `<div class="prospect-thesis">${p.thesis}</div>` : ""}
+    <div class="prospect-metrics">${metricParts.map(m => `<span><strong>${m}</strong></span>`).join("")}</div>
+    ${smSignals ? `<div class="prospect-signals">${smSignals}</div>` : ""}
+    ${p.action ? `<div class="prospect-action">➜ ${p.action}</div>` : ""}
+  </div>
+</div>`;
+}
+
 // ── Build macro strip ──────────────────────────────────────────────────────
 function buildMacroStrip(rates) {
   if (!rates || !Object.keys(rates).length) return;
@@ -502,6 +658,17 @@ async function loadDashboard() {
         .sort((a, b) => (b[1].conviction_score||0) - (a[1].conviction_score||0))
         .map(([tk, d]) => buildCard(tk, d))
         .join("");
+    }
+
+    // Prospect cards
+    const prospects = data.prospects || [];
+    if (prospects.length > 0) {
+      const pgrid = document.getElementById("prospect-grid");
+      pgrid.innerHTML = prospects
+        .sort((a, b) => (a.rank || 99) - (b.rank || 99))
+        .map(p => buildProspectCard(p))
+        .join("");
+      document.getElementById("prospects-section").classList.remove("hidden");
     }
 
     document.getElementById("loading").classList.add("hidden");

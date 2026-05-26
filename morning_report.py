@@ -58,6 +58,7 @@ from config import (
 from options_flow          import get_options_flow
 from insider_tracker       import get_insider_activity
 from institutional_tracker import get_institutional_ownership
+from prospect_finder       import find_prospects
 
 # ════════════════════════════════════════════════════════════════════════════
 #  RUNTIME CONSTANTS
@@ -1631,6 +1632,194 @@ def draw_front_page(c, all_ticker_data: list[dict], macro_data: dict, macro_text
 
 
 # ════════════════════════════════════════════════════════════════════════════
+#  WATCHLIST SUGGESTIONS PAGE
+# ════════════════════════════════════════════════════════════════════════════
+
+def draw_prospects_page(
+    c: pdfcanvas.Canvas,
+    prospects: list[dict],
+    date_tag: str,
+) -> None:
+    """Draw the Watchlist Suggestions page onto the current canvas page."""
+    st = _styles()
+
+    # ── Header band ───────────────────────────────────────────────────────────
+    c.setFillColor(GS_NAVY)
+    c.rect(0, PH - 56, PW, 56, fill=1, stroke=0)
+    c.setFillColor(GOLD_COL)
+    c.rect(0, PH - 59, PW, 3, fill=1, stroke=0)
+
+    c.setFillColor(white)
+    c.setFont("Helvetica-Bold", 13)
+    c.drawString(36, PH - 24, FIRM_NAME_U + "  FINANCIAL INTELLIGENCE")
+    c.setFont("Helvetica", 8)
+    c.drawString(36, PH - 40, "WATCHLIST SUGGESTIONS  ·  DAILY PROSPECT RANKING")
+    c.setFillColor(GS_MGRAY)
+    c.setFont("Helvetica", 7.5)
+    c.drawRightString(PW - 36, PH - 40, date_tag)
+
+    # ── Intro text ────────────────────────────────────────────────────────────
+    intro_style = ParagraphStyle(
+        "Intro", fontName="Helvetica", fontSize=8, leading=12,
+        textColor=GS_DGRAY,
+    )
+    intro = Paragraph(
+        "The following stocks were identified by screening a curated universe against the "
+        "current watchlist's investment themes, today's macro environment, and smart-money "
+        "signals. Scores reflect theme alignment, momentum, valuation, and institutional flow. "
+        "These are research leads — not investment advice.",
+        intro_style,
+    )
+    intro_frame = Frame(36, PH - 85, FULL_W, 26,
+                        leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
+    intro_frame.addFromList([intro], c)
+
+    # ── Prospect cards ────────────────────────────────────────────────────────
+    y_cursor = PH - 92    # top of first card
+    card_h   = 88         # pts per card
+    card_gap = 5
+
+    RATING_COLORS = {
+        "Buy":   HexColor("#1A5276"),
+        "Watch": HexColor("#7D6608"),
+        "Avoid": HexColor("#7B241C"),
+    }
+    SIGNAL_COLS = {
+        "bullish": HexColor("#1A5276"),
+        "bearish": HexColor("#7B241C"),
+        "neutral": GS_DGRAY,
+    }
+
+    body_style = ParagraphStyle(
+        "PBody", fontName="Helvetica", fontSize=7.5, leading=11.5,
+        textColor=GS_TEXT, alignment=TA_JUSTIFY,
+    )
+    sm_style = ParagraphStyle(
+        "SM", fontName="Helvetica", fontSize=7, leading=10,
+        textColor=GS_DGRAY,
+    )
+
+    for rank, p in enumerate(prospects[:5], 1):
+        if y_cursor - card_h < 40:
+            break
+
+        # Card background
+        c.setFillColor(GS_LGRAY if rank % 2 == 0 else white)
+        c.rect(36, y_cursor - card_h, FULL_W, card_h, fill=1, stroke=0)
+        # Left accent bar
+        rating     = p.get("rating", "Watch")
+        accent_col = RATING_COLORS.get(rating, GS_DGRAY)
+        c.setFillColor(accent_col)
+        c.rect(36, y_cursor - card_h, 4, card_h, fill=1, stroke=0)
+        # Card border
+        c.setStrokeColor(GS_LINE)
+        c.setLineWidth(0.3)
+        c.rect(36, y_cursor - card_h, FULL_W, card_h, fill=0, stroke=1)
+
+        # ── Header row ────────────────────────────────────────────────────────
+        header_y = y_cursor - 14
+        # Rank badge
+        c.setFillColor(GS_NAVY)
+        c.circle(52, header_y + 2, 8, fill=1, stroke=0)
+        c.setFillColor(white)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawCentredString(52, header_y - 1, str(rank))
+
+        # Ticker
+        c.setFillColor(GS_NAVY)
+        c.setFont("Helvetica-Bold", 13)
+        c.drawString(66, header_y, p.get("ticker", "—"))
+
+        # Company + theme
+        c.setFont("Helvetica", 8)
+        c.setFillColor(GS_DGRAY)
+        company_str = p.get("company", "")[:40]
+        theme_str   = p.get("theme", "")
+        c.drawString(110, header_y + 2, company_str)
+        c.setFont("Helvetica", 7)
+        c.drawString(110, header_y - 7, theme_str)
+
+        # Score badge
+        score = p.get("score", 0)
+        c.setFillColor(GS_BLUE)
+        c.roundRect(PW - 130, header_y - 8, 48, 18, 3, fill=1, stroke=0)
+        c.setFillColor(white)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawCentredString(PW - 106, header_y - 1, f"{score:.1f}/10")
+
+        # Rating badge
+        c.setFillColor(accent_col)
+        c.roundRect(PW - 76, header_y - 8, 40, 18, 3, fill=1, stroke=0)
+        c.setFillColor(white)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawCentredString(PW - 56, header_y - 1, rating.upper())
+
+        # ── Thesis ────────────────────────────────────────────────────────────
+        thesis_text = p.get("thesis", "")
+        if thesis_text:
+            thesis_frame = Frame(
+                42, y_cursor - card_h + 28, FULL_W - 20, 34,
+                leftPadding=4, rightPadding=4, topPadding=0, bottomPadding=0,
+            )
+            thesis_frame.addFromList(
+                [Paragraph(xe(thesis_text), body_style)], c
+            )
+
+        # ── Metrics row ───────────────────────────────────────────────────────
+        metrics_y = y_cursor - card_h + 18
+        price  = p.get("price", 0)
+        ret1m  = p.get("ret_1m", 0)
+        cap    = p.get("market_cap", 0)
+        ps     = p.get("ps_ratio", 0)
+        opt_s  = p.get("options_signal", "neutral")
+        ins_s  = p.get("insider_signal", "neutral")
+        inst_s = p.get("institutional_signal", "neutral")
+
+        cap_str = (f"${cap/1e9:.1f}B" if cap >= 1e9 else
+                   f"${cap/1e6:.0f}M" if cap >= 1e6 else "—")
+        chg_col = BULL_COL if ret1m >= 0 else BEAR_COL
+
+        c.setFont("Helvetica", 7)
+        c.setFillColor(GS_DGRAY)
+        parts = [
+            f"Price: ${price:.2f}",
+            f"1M: {ret1m:+.1f}%",
+            f"P/S: {ps:.1f}x",
+            f"Cap: {cap_str}",
+        ]
+        c.drawString(44, metrics_y, "  ·  ".join(parts))
+
+        # Signal badges (right side)
+        sig_x = PW - 250
+        for label, sig in [("OPT", opt_s), ("INS", ins_s), ("INST", inst_s)]:
+            sig_col = SIGNAL_COLS.get(sig, GS_DGRAY)
+            c.setFillColor(sig_col)
+            c.setFont("Helvetica-Bold", 6)
+            c.drawString(sig_x, metrics_y, f"{label}:{sig[:4].upper()}")
+            sig_x += 62
+
+        # ── Action line ───────────────────────────────────────────────────────
+        action_text = p.get("action", "")
+        if action_text:
+            c.setFont("Helvetica-Bold", 7)
+            c.setFillColor(accent_col)
+            c.drawString(44, y_cursor - card_h + 7,
+                         f"▶  {action_text[:90]}")
+
+        y_cursor -= card_h + card_gap
+
+    # ── Footer ────────────────────────────────────────────────────────────────
+    c.setFillColor(GS_LGRAY)
+    c.rect(0, 0, PW, 22, fill=1, stroke=0)
+    c.setFillColor(GS_DGRAY)
+    c.setFont("Helvetica", 6.5)
+    c.drawString(36, 8,
+                 f"{FIRM_NAME_FULL}  ·  Watchlist Suggestions  ·  {date_tag}"
+                 f"  ·  AI-generated — not investment advice.")
+    c.drawRightString(PW - 36, 8, "To add: edit tickers.txt and push")
+
+
+# ════════════════════════════════════════════════════════════════════════════
 #  MULTI-PAGE PDF BUILDER — COMBINED
 # ════════════════════════════════════════════════════════════════════════════
 
@@ -1638,6 +1827,7 @@ def build_combined_pdf(
     all_ticker_data: list[dict],
     macro_data: dict,
     macro_text: str,
+    prospects: list[dict] | None = None,
 ) -> Path:
     """Build the combined multi-page PDF with front page + per-ticker pages."""
     REPORTS_DIR.mkdir(exist_ok=True)
@@ -1756,6 +1946,11 @@ def build_combined_pdf(
         c.setLineWidth(0.4)
         c.line(R2_X - 6, PAGE2_BODY_BOT + L2_H - 2, R2_X - 6, PAGE2_BODY_BOT + 2)
 
+        c.showPage()
+
+    # ── Final page: Watchlist Suggestions ─────────────────────────────────
+    if prospects:
+        draw_prospects_page(c, prospects, date_tag)
         c.showPage()
 
     c.save()
@@ -2153,7 +2348,11 @@ def git_push_reports(pdf_paths: list[Path], extra_files: list[Path] | None = Non
     return True
 
 
-def write_dashboard_json(all_ticker_data: list[dict], macro_data: dict) -> Path:
+def write_dashboard_json(
+    all_ticker_data: list[dict],
+    macro_data: dict,
+    prospects: list[dict] | None = None,
+) -> Path:
     """Write docs/dashboard_data.json for the GitHub Pages dashboard."""
     import glob as _glob
     DOCS_DIR = REPO_DIR / "docs"
@@ -2206,12 +2405,34 @@ def write_dashboard_json(all_ticker_data: list[dict], macro_data: dict) -> Path:
             "chg":   v.get("chg", 0),
         }
 
+    # Prospects — slim representation for the dashboard card display
+    prospects_json: list[dict] = []
+    for p in (prospects or []):
+        prospects_json.append({
+            "rank":                p.get("rank"),
+            "ticker":              p.get("ticker"),
+            "company":             p.get("company"),
+            "theme":               p.get("theme"),
+            "rating":              p.get("rating"),
+            "score":               p.get("score"),
+            "thesis":              p.get("thesis"),
+            "action":              p.get("action"),
+            "price":               p.get("price"),
+            "ret_1m":              p.get("ret_1m"),
+            "market_cap":          p.get("market_cap"),
+            "ps_ratio":            p.get("ps_ratio"),
+            "options_signal":      p.get("options_signal"),
+            "insider_signal":      p.get("insider_signal"),
+            "institutional_signal": p.get("institutional_signal"),
+        })
+
     payload = {
         "_comment":   "Auto-generated by morning_report.py — do not edit manually",
         "generated":  datetime.now(timezone.utc).isoformat(),
         "report_date": date_tag,
         "macro_rates": macro_rates,
         "tickers":    tickers_json,
+        "prospects":  prospects_json,
     }
 
     out_path = DOCS_DIR / "dashboard_data.json"
@@ -2334,13 +2555,28 @@ def main():
         log.error("No ticker data collected — exiting.")
         sys.exit(1)
 
+    # ── 2b. Watchlist prospects ───────────────────────────────────────────────
+    prospects: list[dict] = []
+    if not args.ticker:   # only when running all tickers
+        log.info("─── Finding watchlist prospects ───")
+        try:
+            prospects = find_prospects(watch_list, macro_data, client)
+            log.info("  Found %d prospects", len(prospects))
+            for p in prospects:
+                log.info("    #%d %s (%s) score=%.1f  %s",
+                         p.get("rank", 0), p.get("ticker"), p.get("company", ""),
+                         p.get("score", 0), p.get("theme", ""))
+        except Exception as exc:
+            log.warning("  Prospect finder failed (non-fatal): %s", exc)
+
     # ── 3. Build PDFs ─────────────────────────────────────────────────────────
     pdf_list: list[Path] = []
 
     # Combined PDF (with front page) — only when running all tickers
     if len(all_ticker_data) > 1:
         log.info("─── Building combined PDF ───")
-        combined = build_combined_pdf(all_ticker_data, macro_data, macro_text)
+        combined = build_combined_pdf(all_ticker_data, macro_data, macro_text,
+                                      prospects=prospects)
         pdf_list.append(combined)
 
     # Individual 2-page ticker PDFs
@@ -2351,7 +2587,7 @@ def main():
 
     # ── 4. Dashboard JSON ──────────────────────────────────────────────────────
     log.info("─── Updating GitHub Pages dashboard ───")
-    dash_path = write_dashboard_json(all_ticker_data, macro_data)
+    dash_path = write_dashboard_json(all_ticker_data, macro_data, prospects=prospects)
 
     # ── 5. Push ───────────────────────────────────────────────────────────────
     if not args.no_push:
