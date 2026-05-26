@@ -472,7 +472,7 @@ OUTPUT EXACTLY this format — no extra text outside these markers:
 ===END_WHAT_CHANGED===
 
 ===IMPLICATIONS===
-[2–3 sentences. What does this mean for the investment thesis? Be specific about {ticker}'s business and model drivers.]
+[REQUIRED — 2–3 sentences. NEVER write "No implications to report" or any placeholder. Even when there are no new SEC filings, synthesize from the overnight news, recent price action, and sector context above to explain what the current market environment means for {ticker}'s investment thesis. Be specific to {ticker}'s business model and near-term drivers.]
 ===END_IMPLICATIONS===
 
 ===VALUATION===
@@ -730,7 +730,9 @@ def build_left_story(analysis: dict, news: list, filings: list, st: dict) -> lis
     story.append(_sec_hdr_table("Implications", W, st))
     story.append(Spacer(1, 4))
     impl = analysis.get("implications", "").strip()
-    story.append(Paragraph(xe(impl) if impl else "No implications to report.", st["body"]))
+    if not impl:
+        impl = "No new material overnight filings; the thesis is unchanged. Monitor price action and sector rotation for near-term entry signals."
+    story.append(Paragraph(xe(impl), st["body"]))
     story.append(Spacer(1, 8))
 
     # Valuation
@@ -1374,13 +1376,14 @@ def draw_front_page(c, all_ticker_data: list[dict], macro_data: dict, macro_text
     hdr_l = ParagraphStyle("CHL", fontName="Helvetica-Bold", fontSize=7, textColor=white, alignment=TA_LEFT)
 
     conv_rows.append([
-        Paragraph("#",       hdr_p),
-        Paragraph("TICKER",  hdr_p),
-        Paragraph("COMPANY", hdr_l),
-        Paragraph("PRICE",   hdr_p),
-        Paragraph("1D%",     hdr_p),
-        Paragraph("RATING",  hdr_p),
-        Paragraph("CONV.",   hdr_p),
+        Paragraph("#",            hdr_p),
+        Paragraph("TICKER",       hdr_p),
+        Paragraph("COMPANY",      hdr_l),
+        Paragraph("PRICE",        hdr_p),
+        Paragraph("1D%",          hdr_p),
+        Paragraph("RATING",       hdr_p),
+        Paragraph("CONV.",        hdr_p),
+        Paragraph("1Y BASE",      hdr_p),
         Paragraph("ONE-LINE THESIS", hdr_l),
     ])
 
@@ -1399,6 +1402,8 @@ def draw_front_page(c, all_ticker_data: list[dict], macro_data: dict, macro_text
         cell_l = ParagraphStyle("CRL", fontName="Helvetica", fontSize=7, alignment=TA_LEFT)
         cell_b = ParagraphStyle("CRB", fontName="Helvetica-Bold", fontSize=7, alignment=TA_CENTER)
 
+        pt_1yr_base = an.get("price_targets", {}).get("1yr", {}).get("base")
+        pt_str      = f"${pt_1yr_base:.2f}" if pt_1yr_base else "—"
         conv_rows.append([
             Paragraph(str(rank), cell_b),
             Paragraph(f'<font color="#0E4DA4"><b>{xe(tk)}</b></font>', cell_p),
@@ -1407,10 +1412,11 @@ def draw_front_page(c, all_ticker_data: list[dict], macro_data: dict, macro_text
             Paragraph(f'<font color="{chg_col_hex}">{chg:+.2f}%</font>', cell_p),
             Paragraph(f'<font color="{rtg_col_hex}"><b>{xe(rtg)}</b></font>', cell_p),
             Paragraph(f'<font color="#002F5F"><b>{conv}/10</b></font>', cell_p),
+            Paragraph(f'<font color="#1A5276"><b>{pt_str}</b></font>', cell_p),
             Paragraph(xe(thesis), cell_l),
         ])
 
-    CW = [18, 36, 100, 44, 36, 36, 32, 238]
+    CW = [18, 36, 100, 44, 36, 36, 32, 44, 194]
     conv_tbl = Table(conv_rows, colWidths=CW)
     tbl_style = [
         ("BACKGROUND",    (0,0), (-1,0), GS_NAVY),

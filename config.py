@@ -63,6 +63,7 @@ _KNOWN_CIKS: dict[str, str] = {
     "TEM":  "0001717115",   # Tempus AI
     "RGTI": "0001838359",   # Rigetti Computing
     "BBAI": "0001836981",   # BigBear.ai
+    "NEE":  "0000753308",   # NextEra Energy
 }
 
 # ── Known Company Metadata ────────────────────────────────────────────────────
@@ -70,6 +71,7 @@ _TICKER_META: dict[str, dict] = {
     "TEM":  {"name": "Tempus AI, Inc.",          "exch": "NASDAQ"},
     "RGTI": {"name": "Rigetti Computing, Inc.",   "exch": "NASDAQ"},
     "BBAI": {"name": "BigBear.ai Holdings, Inc.", "exch": "NYSE"},
+    "NEE":  {"name": "NextEra Energy, Inc.",      "exch": "NYSE"},
 }
 
 # ── Tickers File ──────────────────────────────────────────────────────────────

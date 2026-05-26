@@ -1,0 +1,233 @@
+name: Weekly Intelligence Rollup  (Sun 8 am EST)
+
+# ── Triggers ──────────────────────────────────────────────────────────────────
+on:
+  schedule:
+    # 8 am EST (UTC-5) = 13:00 UTC
+    # During EDT (UTC-4) this fires at 9 am EDT — acceptable one-hour drift
+    - cron: '0 13 * * 0'   # every Sunday at 13:00 UTC
+
+  # Manual run from the Actions tab
+  workflow_dispatch:
+    inputs:
+      no_push:
+        description: 'Build PDF without pushing to repo'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+      no_email:
+        description: 'Skip SendGrid email delivery'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+
+# ── Permissions ───────────────────────────────────────────────────────────────
+permissions:
+  contents: write   # weekly_report.py pushes the PDF via git
+
+# ── Job ───────────────────────────────────────────────────────────────────────
+jobs:
+  weekly:
+    name: Generate Weekly Intelligence Rollup
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # ── 1. Checkout ───────────────────────────────────────────────────────────
+      - name: Checkout repo (working branch)
+        uses: actions/checkout@v4
+        with:
+          ref: claude/agent-tools-edgar-setup-PimAK
+          fetch-depth: 0
+
+      # ── 2. Python ────────────────────────────────────────────────────────────
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install --quiet -r requirements.txt
+
+      # ── 3. Git identity ───────────────────────────────────────────────────────
+      - name: Configure git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # ── 4. SendGrid pre-flight ────────────────────────────────────────────────
+      - name: SendGrid pre-flight (sender status)
+        if: always()
+        env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+        run: |
+          echo "### SendGrid Pre-flight Check" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          if [ -z "$SENDGRID_API_KEY" ]; then
+            echo "SENDGRID_API_KEY: NOT SET — email delivery will be skipped." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "SENDGRID_API_KEY: SET (prefix: ${SENDGRID_API_KEY:0:8}…)" >> $GITHUB_STEP_SUMMARY
+            python verify_sender.py --check >> $GITHUB_STEP_SUMMARY 2>&1 || true
+          fi
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      # ── 5. Generate weekly report ─────────────────────────────────────────────
+      - name: Run weekly_report.py
+        id: generate
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SENDGRID_API_KEY:  ${{ secrets.SENDGRID_API_KEY }}
+        run: |
+          FLAGS="--no-email"
+          if [ "${{ github.event.inputs.no_push }}" = "true" ]; then FLAGS="$FLAGS --no-push"; fi
+          python weekly_report.py $FLAGS
+
+      # ── 6. Email via SendGrid ─────────────────────────────────────────────────
+      # Runs only when generate step succeeded AND no_email is not 'true'.
+      # Reads recipients from recipients.txt — add addresses there, no code change needed.
+      - name: Email weekly rollup via SendGrid
+        if: success() && github.event.inputs.no_email != 'true'
+        env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+        run: |
+          python - <<'PYEOF'
+          import json, os, base64, glob, urllib.request, urllib.error
+          from datetime import datetime, timezone, timedelta
+          from pathlib import Path
+
+          api_key = os.environ.get("SENDGRID_API_KEY", "").strip()
+          if not api_key:
+              print("SENDGRID_API_KEY not set — skipping email delivery.")
+              raise SystemExit(0)
+
+          # Find the PDF built this run
+          date_tag = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+          pdf_path = f"reports/weekly_report_{date_tag}.pdf"
+          if not os.path.exists(pdf_path):
+              matches = sorted(glob.glob("reports/weekly_report_*.pdf"))
+              if not matches:
+                  print(f"No weekly PDF found — skipping email.")
+                  raise SystemExit(0)
+              pdf_path = matches[-1]
+              print(f"Note: using {os.path.basename(pdf_path)}")
+
+          # Recipients
+          try:
+              to_emails = [
+                  ln.strip() for ln in open("recipients.txt")
+                  if ln.strip() and not ln.strip().startswith("#")
+              ]
+          except FileNotFoundError:
+              to_emails = []
+          to_emails = to_emails or ["marklangston3@gmail.com"]
+
+          # Week label
+          now   = datetime.now(timezone.utc)
+          end   = now - timedelta(days=1)
+          start = end  - timedelta(days=4)
+          week_label = f"Week of {start.strftime('%B %d')}–{end.strftime('%d, %Y')}"
+
+          from_email = "marklangston3@gmail.com"
+          from_name  = "Langston's Financial Intelligence"
+          subject    = f"Langston's Weekly Intelligence Rollup — {week_label}"
+          filename   = os.path.basename(pdf_path)
+          pdf_kb     = os.path.getsize(pdf_path) / 1024
+          encoded    = base64.b64encode(open(pdf_path, "rb").read()).decode()
+
+          html = f"""<!DOCTYPE html>
+          <html><head><meta charset="utf-8"></head>
+          <body style="font-family:Arial,Helvetica,sans-serif;color:#1A202C;max-width:640px;margin:0 auto">
+            <div style="background:#002F5F;padding:22px 28px;border-bottom:3px solid #C9A84C">
+              <h1 style="color:white;margin:0;font-size:18px;letter-spacing:1px">
+                LANGSTON'S FINANCIAL INTELLIGENCE</h1>
+              <p style="color:#A8C8F0;margin:5px 0 0;font-size:12px">
+                WEEKLY INTELLIGENCE ROLLUP &nbsp;&middot;&nbsp; {week_label.upper()}</p>
+            </div>
+            <div style="padding:20px 28px;background:#EEF1F6;border-bottom:1px solid #CDD3DF">
+              <p style="margin:0;font-size:13px;color:#4A5568">
+                Your weekly equity research rollup is attached. The report covers
+                all portfolio tickers — what moved, why, SEC filings, sector themes,
+                and a forward look for the coming week.</p>
+            </div>
+            <div style="padding:20px 28px;background:white">
+              <table style="width:100%;border-collapse:collapse;font-size:12px;color:#4A5568">
+                <tr>
+                  <td style="padding:8px 0;border-bottom:1px solid #EEF1F6;
+                             font-weight:bold;width:30%">Coverage</td>
+                  <td style="padding:8px 0;border-bottom:1px solid #EEF1F6">{week_label}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 0;border-bottom:1px solid #EEF1F6;font-weight:bold">
+                    Attachment</td>
+                  <td style="padding:8px 0;border-bottom:1px solid #EEF1F6">
+                    {filename} &nbsp;({pdf_kb:.0f} KB)</td>
+                </tr>
+              </table>
+            </div>
+            <div style="padding:14px 28px;background:#002F5F">
+              <p style="color:#A8C8F0;margin:0;font-size:10px">
+                Langston's Financial Intelligence &nbsp;&middot;&nbsp; Weekly Rollup
+                &nbsp;&middot;&nbsp; AI-generated &nbsp;&middot;&nbsp; Not investment advice.</p>
+            </div>
+          </body></html>"""
+
+          payload = {
+              "personalizations": [{"to": [{"email": e} for e in to_emails]}],
+              "from": {"email": from_email, "name": from_name},
+              "subject": subject,
+              "content": [{"type": "text/html", "value": html}],
+              "attachments": [{
+                  "content": encoded,
+                  "type": "application/pdf",
+                  "filename": filename,
+                  "disposition": "attachment",
+              }],
+          }
+
+          print(f"Sending to: {', '.join(to_emails)}")
+          print(f"Subject:    {subject}")
+          print(f"PDF:        {filename}  ({pdf_kb:.0f} KB)")
+
+          req = urllib.request.Request(
+              "https://api.sendgrid.com/v3/mail/send",
+              data=json.dumps(payload).encode(),
+              headers={
+                  "Authorization": f"Bearer {api_key}",
+                  "Content-Type": "application/json",
+              },
+              method="POST",
+          )
+          try:
+              with urllib.request.urlopen(req, timeout=30) as resp:
+                  print(f"✓ SendGrid HTTP {resp.status} — email accepted.")
+          except urllib.error.HTTPError as exc:
+              body = exc.read().decode(errors="replace")
+              print(f"✗ SendGrid HTTP {exc.code}: {body[:500]}")
+              raise SystemExit(1)
+          except Exception as exc:
+              print(f"✗ Network error: {exc}")
+              raise SystemExit(1)
+          PYEOF
+
+      # ── 7. Print log in Actions summary ──────────────────────────────────────
+      - name: Print weekly log (last 100 lines)
+        if: always()
+        run: |
+          echo "### weekly_report.log (last 100 lines)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -100 weekly_report.log >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "(log not found)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      # ── 8. Upload PDF + log as artifacts (30-day retention) ──────────────────
+      - name: Upload weekly report artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-report-${{ github.run_id }}
+          path: |
+            reports/weekly_report_*.pdf
+            weekly_report.log
+          retention-days: 30
