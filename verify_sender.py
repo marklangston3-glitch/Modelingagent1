@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 
 SENDGRID_FROM = "marklangston3@gmail.com"
 SENDGRID_NAME = "Langston's Financial Intelligence"
-SENDGRID_TO   = "marklangston3@gmail.com"
+SENDGRID_TO   = ["marklangston3@gmail.com", "Langstonroy@aol.com"]
 API_BASE      = "https://api.sendgrid.com/v3"
 
 
@@ -193,7 +193,7 @@ def send_test_email(api_key: str) -> bool:
         f'width:38%">From</td><td style="padding:8px 10px">{SENDGRID_FROM}</td></tr>'
 
         f'<tr><td style="padding:8px 10px;background:#EEF1F6;font-weight:bold;color:#4A5568">'
-        f'To</td><td style="padding:8px 10px">{SENDGRID_TO}</td></tr>'
+        f'To</td><td style="padding:8px 10px">{", ".join(SENDGRID_TO)}</td></tr>'
 
         f'<tr><td style="padding:8px 10px;background:#EEF1F6;font-weight:bold;color:#4A5568">'
         f'Sent at</td><td style="padding:8px 10px">{date_str}</td></tr>'
@@ -219,13 +219,14 @@ def send_test_email(api_key: str) -> bool:
     )
 
     payload = {
-        "personalizations": [{"to": [{"email": SENDGRID_TO}]}],
+        "personalizations": [{"to": [{"email": e} for e in SENDGRID_TO]}],
         "from": {"email": SENDGRID_FROM, "name": SENDGRID_NAME},
         "subject": f"Langston's — SendGrid Test Email  ({date_str})",
         "content": [{"type": "text/html", "value": html_body}],
     }
 
-    print(f"  Sending test email from {SENDGRID_FROM} to {SENDGRID_TO} …")
+    recipients_str = ", ".join(SENDGRID_TO)
+    print(f"  Sending test email from {SENDGRID_FROM} to {recipients_str} …")
     req = urllib.request.Request(
         f"{API_BASE}/mail/send",
         data=json.dumps(payload).encode(),
@@ -238,7 +239,7 @@ def send_test_email(api_key: str) -> bool:
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             print(f"  ✓ Test email accepted by SendGrid (HTTP {resp.status}).")
-            print(f"    → Check {SENDGRID_TO} — arrives within 1–2 minutes.")
+            print(f"    → Check {recipients_str} — arrives within 1–2 minutes.")
             return True
     except urllib.error.HTTPError as exc:
         body = exc.read().decode(errors="replace")

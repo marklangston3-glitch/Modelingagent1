@@ -71,8 +71,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           case "$ACTION" in
             test)
-              echo "A test email was sent to **marklangston3@gmail.com**." >> $GITHUB_STEP_SUMMARY
-              echo "Check your inbox (and spam) — it should arrive within 1–2 minutes." >> $GITHUB_STEP_SUMMARY
+              echo "A test email was sent to **marklangston3@gmail.com** and **Langstonroy@aol.com**." >> $GITHUB_STEP_SUMMARY
+              echo "Check both inboxes (and spam) — it should arrive within 1–2 minutes." >> $GITHUB_STEP_SUMMARY
               ;;
             check)
               echo "Verified sender list printed above." >> $GITHUB_STEP_SUMMARY
@@ -88,5 +88,6 @@ jobs:
               ;;
           esac
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**From/To:** marklangston3@gmail.com" >> $GITHUB_STEP_SUMMARY
+          echo "**From:** marklangston3@gmail.com" >> $GITHUB_STEP_SUMMARY
+          echo "**To:** marklangston3@gmail.com, Langstonroy@aol.com" >> $GITHUB_STEP_SUMMARY
           echo "**Run ID:** ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY

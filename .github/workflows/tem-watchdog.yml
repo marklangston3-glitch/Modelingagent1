@@ -106,7 +106,7 @@ jobs:
 
           api_key    = os.environ.get("SENDGRID_API_KEY", "").strip()
           from_email = "marklangston3@gmail.com"
-          to_email   = "marklangston3@gmail.com"
+          to_emails  = ["marklangston3@gmail.com", "Langstonroy@aol.com"]
           tickers    = "${{ steps.check_rebuild.outputs.tickers }}"
           filings    = "${{ steps.check_rebuild.outputs.filings }}"
           run_id     = "${{ github.run_id }}"
@@ -170,7 +170,7 @@ jobs:
           </body></html>"""
 
           payload = {
-              "personalizations": [{"to": [{"email": to_email}]}],
+              "personalizations": [{"to": [{"email": e} for e in to_emails]}],
               "from": {"email": from_email, "name": "Langston's Financial Intelligence"},
               "subject": f"Langston's Model Update — New SEC Filing: {tickers}",
               "content": [{"type": "text/html", "value": html}],

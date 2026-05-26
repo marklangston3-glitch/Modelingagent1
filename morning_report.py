@@ -47,7 +47,7 @@ from reportlab.platypus import Frame, Paragraph, Spacer, Table, TableStyle, Imag
 
 # Import centralized config
 from config import (
-    FIRM_NAME, FIRM_NAME_U, FIRM_NAME_FULL, EMAIL,
+    FIRM_NAME, FIRM_NAME_U, FIRM_NAME_FULL, EMAIL, RECIPIENTS,
     REPO_DIR, BRANCH, GIT_REMOTE,
     ANTHROPIC_MODEL, get_anthropic_key,
     SECTOR_ETFS, MACRO_RATE_TICKERS,
@@ -1660,20 +1660,24 @@ def _sendgrid_send(
     api_key: str,
     from_email: str,
     from_name: str,
-    to_email: str,
+    to_emails: "list[str] | str",
     subject: str,
     html_body: str,
     attachments: list[dict] | None = None,
 ) -> bool:
     """
     POST to SendGrid v3 /mail/send using stdlib urllib only — no extra package.
+    to_emails may be a single address string or a list of addresses.
     Returns True on HTTP 202, False on any error.
     """
     import urllib.request
     import urllib.error
 
+    if isinstance(to_emails, str):
+        to_emails = [to_emails]
+
     payload: dict = {
-        "personalizations": [{"to": [{"email": to_email}]}],
+        "personalizations": [{"to": [{"email": e} for e in to_emails]}],
         "from": {"email": from_email, "name": from_name},
         "subject": subject,
         "content": [{"type": "text/html", "value": html_body}],
@@ -1729,11 +1733,11 @@ def send_email_report(
         log.info("  SENDGRID_API_KEY not set — skipping email delivery.")
         return False
 
-    # Both FROM and TO are marklangston3@gmail.com.
-    # The FROM address must be verified via SendGrid Sender Authentication
-    # before emails will deliver (run: python verify_sender.py --register).
-    from_email = "marklangston3@gmail.com"
-    to_email   = "marklangston3@gmail.com"
+    # FROM is marklangston3@gmail.com (must be verified via SendGrid Sender
+    # Authentication — run: python verify_sender.py --register).
+    # TO goes to every address in RECIPIENTS (config.py).
+    from_email = EMAIL
+    to_emails  = RECIPIENTS
     date_str   = datetime.now(timezone.utc).strftime("%B %d, %Y")
 
     # ── Conviction table HTML rows ────────────────────────────────────────────
@@ -1855,12 +1859,12 @@ def send_email_report(
             log.warning("  Could not attach %s: %s", path.name, exc)
 
     subject = f"{FIRM_NAME} Morning Brief — {date_str}"
-    log.info("  Sending to %s via SendGrid (from: %s) …", to_email, from_email)
+    log.info("  Sending to %s via SendGrid (from: %s) …", ", ".join(to_emails), from_email)
     return _sendgrid_send(
         api_key    = api_key,
         from_email = from_email,
         from_name  = f"{FIRM_NAME} Research",
-        to_email   = to_email,
+        to_emails  = to_emails,
         subject    = subject,
         html_body  = html_body,
         attachments= attachments,

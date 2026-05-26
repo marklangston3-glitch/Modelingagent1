@@ -15,6 +15,12 @@ FIRM_NAME_U    = FIRM_NAME.upper()                        # header band text
 FIRM_NAME_FULL = "Langston's Financial Intelligence"
 EMAIL          = "marklangston3@gmail.com"
 
+# ── Email Recipients (all report and alert emails go to every address) ────────
+RECIPIENTS: list[str] = [
+    "marklangston3@gmail.com",
+    "Langstonroy@aol.com",
+]
+
 # ── Repository ────────────────────────────────────────────────────────────────
 REPO_DIR   = Path(__file__).parent.resolve()
 BRANCH     = "claude/agent-tools-edgar-setup-PimAK"
