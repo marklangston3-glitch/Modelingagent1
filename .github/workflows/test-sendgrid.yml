@@ -1,0 +1,81 @@
+name: Test SendGrid Email
+
+# ── Triggers ──────────────────────────────────────────────────────────────────
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to run'
+        required: false
+        default: 'test'
+        type: choice
+        options:
+          - test      # send a live test email → marklangston3@gmail.com
+          - check     # list verified senders and status
+          - register  # register marklangston3@gmail.com as a verified sender
+          - resend    # resend the verification email if it expired
+
+# ── Permissions ───────────────────────────────────────────────────────────────
+permissions:
+  contents: read
+
+# ── Job ───────────────────────────────────────────────────────────────────────
+jobs:
+  sendgrid:
+    name: SendGrid — ${{ github.event.inputs.action || 'test' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          ref: claude/agent-tools-edgar-setup-PimAK
+
+      # ── 2. Python ────────────────────────────────────────────────────────────
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          # No pip install needed — verify_sender.py uses stdlib only
+
+      # ── 3. Run verify_sender.py ───────────────────────────────────────────────
+      - name: Run verify_sender.py
+        id: sendgrid
+        env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+        run: |
+          ACTION="${{ github.event.inputs.action || 'test' }}"
+          echo "Running: verify_sender.py --${ACTION}"
+          echo ""
+          python verify_sender.py --${ACTION}
+
+      # ── 4. Summary ───────────────────────────────────────────────────────────
+      - name: Write step summary
+        if: always()
+        run: |
+          ACTION="${{ github.event.inputs.action || 'test' }}"
+          echo "### SendGrid — \`--${ACTION}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          case "$ACTION" in
+            test)
+              echo "A test email was sent to **marklangston3@gmail.com**." >> $GITHUB_STEP_SUMMARY
+              echo "Check your inbox (and spam) — it should arrive within 1–2 minutes." >> $GITHUB_STEP_SUMMARY
+              ;;
+            check)
+              echo "Verified sender list printed above." >> $GITHUB_STEP_SUMMARY
+              echo "If **marklangston3@gmail.com** shows \`○ PENDING\`, check the" >> $GITHUB_STEP_SUMMARY
+              echo "inbox for the SendGrid verification email and click the link." >> $GITHUB_STEP_SUMMARY
+              ;;
+            register)
+              echo "Sender registration request submitted." >> $GITHUB_STEP_SUMMARY
+              echo "Check **marklangston3@gmail.com** for the SendGrid verification email." >> $GITHUB_STEP_SUMMARY
+              ;;
+            resend)
+              echo "Verification email re-sent to **marklangston3@gmail.com**." >> $GITHUB_STEP_SUMMARY
+              ;;
+          esac
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**From/To:** marklangston3@gmail.com" >> $GITHUB_STEP_SUMMARY
+          echo "**Run ID:** ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY

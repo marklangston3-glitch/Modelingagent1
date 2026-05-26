@@ -94,19 +94,18 @@ jobs:
 
       # ── 6. Send email notification via SendGrid (only when filing detected) ───
       # Requires SENDGRID_API_KEY secret (Settings → Secrets → Actions).
-      # SENDGRID_FROM_EMAIL must be a sender verified in your SendGrid account
-      # (Settings → Sender Authentication → Single Sender Verification).
+      # FROM address marklangston3@gmail.com must be verified via SendGrid
+      # Sender Authentication — run: python verify_sender.py --register
       - name: Send model update notification
         if: steps.check_rebuild.outputs.triggered == 'true'
         env:
-          SENDGRID_API_KEY:    ${{ secrets.SENDGRID_API_KEY }}
-          SENDGRID_FROM_EMAIL: ${{ secrets.SENDGRID_FROM_EMAIL }}
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
         run: |
           python - <<'PYEOF'
           import json, os, urllib.request, urllib.error
 
-          api_key    = os.environ.get("SENDGRID_API_KEY",    "").strip()
-          from_email = os.environ.get("SENDGRID_FROM_EMAIL", "marklangston3@gmail.com").strip()
+          api_key    = os.environ.get("SENDGRID_API_KEY", "").strip()
+          from_email = "marklangston3@gmail.com"
           to_email   = "marklangston3@gmail.com"
           tickers    = "${{ steps.check_rebuild.outputs.tickers }}"
           filings    = "${{ steps.check_rebuild.outputs.filings }}"

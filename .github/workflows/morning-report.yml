@@ -64,13 +64,13 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       # ── 4. Generate report ───────────────────────────────────────────────────
-      # SENDGRID_FROM_EMAIL must be a sender verified in your SendGrid account.
-      # If SENDGRID_API_KEY is absent, the script skips email silently.
+      # FROM address (marklangston3@gmail.com) is hardcoded in morning_report.py.
+      # Verify it once with: python verify_sender.py --register
+      # If SENDGRID_API_KEY is absent, email is skipped silently; PDF still builds.
       - name: Run morning_report.py
         env:
-          ANTHROPIC_API_KEY:    ${{ secrets.ANTHROPIC_API_KEY }}
-          SENDGRID_API_KEY:     ${{ secrets.SENDGRID_API_KEY }}
-          SENDGRID_FROM_EMAIL:  ${{ secrets.SENDGRID_FROM_EMAIL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SENDGRID_API_KEY:  ${{ secrets.SENDGRID_API_KEY }}
         run: |
           FLAGS=""
           if [ -n "${{ github.event.inputs.ticker }}" ]; then

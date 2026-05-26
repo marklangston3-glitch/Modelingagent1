@@ -1712,16 +1712,15 @@ def send_email_report(
     Email the morning report PDF(s) via SendGrid.
 
     Reads environment variables:
-      SENDGRID_API_KEY     — required; if absent, logs and skips silently
-      SENDGRID_FROM_EMAIL  — verified sender address in your SendGrid account
-                             (default: config.EMAIL = marklangston3@gmail.com)
-                             NOTE: the FROM address must be verified via
-                             SendGrid → Settings → Sender Authentication before
-                             emails will deliver successfully.
+      SENDGRID_API_KEY  — required; if absent, logs and skips silently
+
+    FROM and TO are both hardcoded to marklangston3@gmail.com.
+    The FROM address must be verified in SendGrid before emails deliver:
+      python verify_sender.py --register   # one-time setup
+      python verify_sender.py --check      # confirm status
 
     Attaches the combined morning_report_{date}.pdf when present;
     falls back to attaching all generated PDFs.
-    Sends to config.EMAIL (marklangston3@gmail.com).
     """
     import base64
 
@@ -1730,8 +1729,11 @@ def send_email_report(
         log.info("  SENDGRID_API_KEY not set — skipping email delivery.")
         return False
 
-    from_email = os.environ.get("SENDGRID_FROM_EMAIL", EMAIL).strip()
-    to_email   = EMAIL
+    # Both FROM and TO are marklangston3@gmail.com.
+    # The FROM address must be verified via SendGrid Sender Authentication
+    # before emails will deliver (run: python verify_sender.py --register).
+    from_email = "marklangston3@gmail.com"
+    to_email   = "marklangston3@gmail.com"
     date_str   = datetime.now(timezone.utc).strftime("%B %d, %Y")
 
     # ── Conviction table HTML rows ────────────────────────────────────────────
