@@ -47,9 +47,20 @@ jobs:
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
         run: |
           ACTION="${{ github.event.inputs.action || 'test' }}"
-          echo "Running: verify_sender.py --${ACTION}"
+          echo "=== verify_sender.py --${ACTION} ==="
           echo ""
           python verify_sender.py --${ACTION}
+          EXIT=$?
+
+          # After registering, always show current sender status so you can
+          # confirm whether marklangston3@gmail.com is verified or still pending.
+          if [ "$ACTION" = "register" ]; then
+            echo ""
+            echo "=== Current sender status ==="
+            python verify_sender.py --check
+          fi
+
+          exit $EXIT
 
       # ── 4. Summary ───────────────────────────────────────────────────────────
       - name: Write step summary

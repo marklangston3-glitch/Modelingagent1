@@ -120,10 +120,20 @@ def register_sender(api_key: str):
             msg = e.get("message", str(e))
             if "already exists" in msg.lower() or "duplicate" in msg.lower():
                 print(f"  ℹ  {SENDGRID_FROM} is already registered.")
-                print(f"     Run --check to see its verification status.")
-                print(f"     Run --resend if you need a new verification email.")
+                print(f"     Run with --check to see its verification status.")
+                print(f"     Run with --resend if you need a new verification email.")
                 return True
             print(f"  ✗ {msg}")
+        return False
+
+    if status == 401:
+        print(f"  ✗ HTTP 401 — Unauthorized.")
+        print(f"      Check that SENDGRID_API_KEY is valid and has Sender Verification permission.")
+        return False
+
+    if status == 403:
+        print(f"  ✗ HTTP 403 — API key lacks permission to manage senders.")
+        print(f"      In SendGrid: Settings → API Keys → edit key → enable 'Sender Verification'.")
         return False
 
     print(f"  ✗ HTTP {status}: {data}")
@@ -232,12 +242,22 @@ def send_test_email(api_key: str) -> bool:
             return True
     except urllib.error.HTTPError as exc:
         body = exc.read().decode(errors="replace")
-        print(f"  ✗ SendGrid HTTP {exc.code}:")
-        try:
-            for e in json.loads(body).get("errors", []):
-                print(f"      {e.get('message', e)}")
-        except Exception:
-            print(f"      {body[:400]}")
+        if exc.code == 401:
+            print(f"  ✗ HTTP 401 — Unauthorized.")
+            print(f"      Check that SENDGRID_API_KEY is correct and has 'Mail Send' permission.")
+        elif exc.code == 403:
+            print(f"  ✗ HTTP 403 — Forbidden.")
+            print(f"      '{SENDGRID_FROM}' is not a verified sender in SendGrid.")
+            print(f"      → Run this workflow with action='register' first.")
+            print(f"      → Click the verification link sent to {SENDGRID_FROM}.")
+            print(f"      → Then re-run with action='test'.")
+        else:
+            print(f"  ✗ SendGrid HTTP {exc.code}:")
+            try:
+                for e in json.loads(body).get("errors", []):
+                    print(f"      {e.get('message', e)}")
+            except Exception:
+                print(f"      {body[:400]}")
         return False
     except Exception as exc:
         print(f"  ✗ Request error: {exc}")
@@ -258,9 +278,16 @@ Examples:
   SENDGRID_API_KEY=SG.xxx python verify_sender.py --resend  # resend verification
         """,
     )
-    parser.add_argument("--check",  action="store_true", help="List verified senders and status")
-    parser.add_argument("--test",   action="store_true", help="Send a test email")
-    parser.add_argument("--resend", action="store_true", help="Resend verification email")
+    # All four actions are explicit flags so the workflow can pass --${ACTION} directly.
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--register", action="store_true",
+                       help="Register marklangston3@gmail.com as a verified sender (default)")
+    group.add_argument("--check",    action="store_true",
+                       help="List verified senders and their status")
+    group.add_argument("--test",     action="store_true",
+                       help="Send a live test email to marklangston3@gmail.com")
+    group.add_argument("--resend",   action="store_true",
+                       help="Resend the verification email if it expired")
     args = parser.parse_args()
 
     api_key = os.environ.get("SENDGRID_API_KEY", "").strip()
@@ -283,7 +310,7 @@ Examples:
         resend_verification(api_key)
 
     else:
-        # Default: register sender then show current status
+        # --register or no flag: register sender then show current status
         register_sender(api_key)
         print()
         check_verified_senders(api_key)
