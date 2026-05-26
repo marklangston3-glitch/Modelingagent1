@@ -63,7 +63,30 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      # ── 4. Generate report ───────────────────────────────────────────────────
+      # ── 4. SendGrid pre-flight check ─────────────────────────────────────────
+      # Checks API key presence + sender verification status before the main run.
+      # Failures here are non-fatal: the report PDF still builds even if email
+      # will fail. Check this step's output to diagnose delivery issues.
+      - name: SendGrid pre-flight (sender status)
+        if: always()
+        env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+        run: |
+          echo "### SendGrid Pre-flight Check" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          if [ -z "$SENDGRID_API_KEY" ]; then
+            echo "SENDGRID_API_KEY: NOT SET — email delivery will be skipped." >> $GITHUB_STEP_SUMMARY
+            echo "  Add it: GitHub → Settings → Secrets → Actions → New repository secret" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "SENDGRID_API_KEY: SET (prefix: ${SENDGRID_API_KEY:0:8}…)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            python verify_sender.py --check >> $GITHUB_STEP_SUMMARY 2>&1 || true
+          fi
+
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      # ── 5. Generate report ───────────────────────────────────────────────────
       # FROM address (marklangston3@gmail.com) is hardcoded in morning_report.py.
       # Verify it once with: python verify_sender.py --register
       # If SENDGRID_API_KEY is absent, email is skipped silently; PDF still builds.
@@ -85,12 +108,12 @@ jobs:
           python morning_report.py $FLAGS
 
       # ── 5. Show log in Actions summary ───────────────────────────────────────
-      - name: Print report log (last 60 lines)
+      - name: Print report log (last 100 lines)
         if: always()
         run: |
-          echo "### morning_report.log (last 60 lines)" >> $GITHUB_STEP_SUMMARY
+          echo "### morning_report.log (last 100 lines)" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          tail -60 morning_report.log >> $GITHUB_STEP_SUMMARY
+          tail -100 morning_report.log >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "(log not found)" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       # ── 6. Upload PDF + log as artifacts (30-day retention) ──────────────────

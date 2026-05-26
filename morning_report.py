@@ -1669,6 +1669,8 @@ def _sendgrid_send(
     POST to SendGrid v3 /mail/send using stdlib urllib only — no extra package.
     to_emails may be a single address string or a list of addresses.
     Returns True on HTTP 202, False on any error.
+
+    Logs exhaustive diagnostics so every failure is visible in GitHub Actions.
     """
     import urllib.request
     import urllib.error
@@ -1685,9 +1687,24 @@ def _sendgrid_send(
     if attachments:
         payload["attachments"] = attachments
 
+    raw_payload = json.dumps(payload).encode()
+    payload_kb  = len(raw_payload) / 1024
+
+    # ── Pre-flight diagnostics ────────────────────────────────────────────────
+    log.info("  [SendGrid] POST https://api.sendgrid.com/v3/mail/send")
+    log.info("  [SendGrid]   key prefix : %s…", api_key[:8])
+    log.info("  [SendGrid]   from       : %s (%s)", from_email, from_name)
+    log.info("  [SendGrid]   to         : %s", ", ".join(to_emails))
+    log.info("  [SendGrid]   subject    : %s", subject[:100])
+    log.info("  [SendGrid]   attachments: %d file(s)", len(attachments or []))
+    log.info("  [SendGrid]   payload    : %.1f KB", payload_kb)
+    for att in (attachments or []):
+        kb = len(att.get("content", "")) * 3 / 4 / 1024  # base64 → bytes approx
+        log.info("  [SendGrid]     → %s  (%.0f KB)", att.get("filename", "?"), kb)
+
     req = urllib.request.Request(
         "https://api.sendgrid.com/v3/mail/send",
-        data=json.dumps(payload).encode(),
+        data=raw_payload,
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type":  "application/json",
@@ -1696,14 +1713,45 @@ def _sendgrid_send(
     )
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
-            log.info("  SendGrid: email sent (HTTP %d)", resp.status)
+            log.info("  [SendGrid] ✓ HTTP %d — message accepted and queued for delivery.", resp.status)
             return True
     except urllib.error.HTTPError as exc:
         body = exc.read().decode(errors="replace")
-        log.warning("  SendGrid HTTP %d: %s", exc.code, body[:400])
+        log.error("  [SendGrid] ✗ HTTP %d %s", exc.code, exc.reason)
+        # Print full JSON error list (no truncation)
+        try:
+            err_data = json.loads(body)
+            errors   = err_data.get("errors", [err_data])
+            for i, e in enumerate(errors, 1):
+                msg  = e.get("message", str(e))
+                fld  = e.get("field", "")
+                help_ = e.get("help", "")
+                log.error("  [SendGrid]   error %d: %s%s%s",
+                          i, msg,
+                          f"  (field: {fld})" if fld else "",
+                          f"  → {help_}" if help_ else "")
+        except Exception:
+            log.error("  [SendGrid]   raw body: %s", body)
+        # Human-readable guidance per status code
+        if exc.code == 403:
+            log.error("  [SendGrid] *** 403 FORBIDDEN — most likely cause: ***")
+            log.error("  [SendGrid]   '%s' is not a Verified Sender in SendGrid.", from_email)
+            log.error("  [SendGrid]   Fix: run 'python verify_sender.py --register'")
+            log.error("  [SendGrid]        then click the verification link emailed to %s", from_email)
+            log.error("  [SendGrid]        then run 'python verify_sender.py --check' to confirm.")
+        elif exc.code == 401:
+            log.error("  [SendGrid] *** 401 UNAUTHORIZED — most likely cause: ***")
+            log.error("  [SendGrid]   SENDGRID_API_KEY is invalid, expired, or lacks 'Mail Send' scope.")
+            log.error("  [SendGrid]   Fix: regenerate the key in SendGrid → Settings → API Keys")
+            log.error("  [SendGrid]        ensure it has 'Mail Send' → Full Access.")
+        elif exc.code == 400:
+            log.error("  [SendGrid] *** 400 BAD REQUEST — payload or address format issue ***")
+        elif exc.code == 413:
+            log.error("  [SendGrid] *** 413 PAYLOAD TOO LARGE — total %.1f KB ***", payload_kb)
+            log.error("  [SendGrid]   Try reducing attachment size.")
         return False
     except Exception as exc:
-        log.warning("  SendGrid error: %s", exc)
+        log.error("  [SendGrid] ✗ Network / unexpected error: %s", exc)
         return False
 
 
@@ -1729,8 +1777,10 @@ def send_email_report(
     import base64
 
     api_key = os.environ.get("SENDGRID_API_KEY", "").strip()
+    log.info("  [Email] SENDGRID_API_KEY : %s",
+             f"SET (prefix: {api_key[:8]}…)" if api_key else "NOT SET — skipping delivery")
     if not api_key:
-        log.info("  SENDGRID_API_KEY not set — skipping email delivery.")
+        log.warning("  [Email] Set the SENDGRID_API_KEY secret in GitHub → Settings → Secrets → Actions")
         return False
 
     # FROM is marklangston3@gmail.com (must be verified via SendGrid Sender
@@ -1739,6 +1789,8 @@ def send_email_report(
     from_email = EMAIL
     to_emails  = RECIPIENTS
     date_str   = datetime.now(timezone.utc).strftime("%B %d, %Y")
+    log.info("  [Email] from : %s", from_email)
+    log.info("  [Email] to   : %s", ", ".join(to_emails))
 
     # ── Conviction table HTML rows ────────────────────────────────────────────
     sorted_data = sorted(
@@ -2007,9 +2059,10 @@ def main():
         log.info("─── Sending email report ───")
         ok = send_email_report(pdf_list, all_ticker_data, macro_text)
         if ok:
-            log.info("  Email delivered to %s", EMAIL)
+            from config import RECIPIENTS
+            log.info("  ✓ Email accepted by SendGrid → %s", ", ".join(RECIPIENTS))
         else:
-            log.info("  Email skipped or failed (see above).")
+            log.error("  ✗ Email NOT delivered — check [SendGrid] log lines above for the exact error.")
 
     log.info("Done. Generated: %s", ", ".join(p.name for p in pdf_list))
     log.info("=" * 70)
