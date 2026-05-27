@@ -1,4 +1,4 @@
-name: Morning Intelligence Report  (TEM · RGTI · BBAI)
+name: Morning Intelligence Report  (TEM · RGTI · BBAI · NEE)
 
 # ── Triggers ──────────────────────────────────────────────────────────────────
 on:
@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       ticker:
-        description: 'Single ticker to report on (leave blank for all: TEM, RGTI, BBAI)'
+        description: 'Single ticker to report on (leave blank for all: TEM, RGTI, BBAI, NEE)'
         required: false
         default: ''
         type: string
@@ -28,16 +28,35 @@ on:
         type: choice
         options: ['false', 'true']
 
+  # Push .trigger_morning_report to fire an immediate manual run without
+  # opening GitHub Actions in a browser.  This file is how we kick the
+  # workflow on-demand (e.g. "run today's report right now").
+  push:
+    branches:
+      - claude/agent-tools-edgar-setup-PimAK
+    paths:
+      - '.trigger_morning_report'
+
 # ── Permissions ───────────────────────────────────────────────────────────────
 permissions:
   contents: write   # morning_report.py pushes the PDF via git
+  pages:    write   # deploy dashboard at end of every run
+  id-token: write   # OIDC token required for actions/deploy-pages
+
+# ── Prevent two runs deploying Pages at the same time ─────────────────────────
+concurrency:
+  group: pages
+  cancel-in-progress: true
 
 # ── Job ───────────────────────────────────────────────────────────────────────
 jobs:
   report:
     name: Generate Morning Report PDF
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30   # prospect_finder adds ~10 min on full runs
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy-pages.outputs.page_url }}
 
     steps:
       # ── 1. Checkout (fresh — picks up any watchdog commits from 12:00 run) ───
@@ -64,9 +83,6 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       # ── 4. SendGrid pre-flight check ─────────────────────────────────────────
-      # Checks API key presence + sender verification status before the main run.
-      # Failures here are non-fatal: the report PDF still builds even if email
-      # will fail. Check this step's output to diagnose delivery issues.
       - name: SendGrid pre-flight (sender status)
         if: always()
         env:
@@ -87,20 +103,18 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       # ── 5. Generate report ───────────────────────────────────────────────────
-      # FROM address (marklangston3@gmail.com) is hardcoded in morning_report.py.
-      # Verify it once with: python verify_sender.py --register
-      # If SENDGRID_API_KEY is absent, email is skipped silently; PDF still builds.
       # date_tag is captured here and forwarded to the email step so both steps
-      # always target the same calendar date (avoids UTC midnight edge cases).
+      # always target the same calendar date (eliminates UTC midnight edge cases).
       - name: Run morning_report.py
         id: generate
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SENDGRID_API_KEY:  ${{ secrets.SENDGRID_API_KEY }}
         run: |
-          # Capture the UTC date at the start of this step — used by email step.
+          # Capture the UTC date at the start of this step.
           DATE_TAG=$(python -c "from datetime import datetime,timezone; print(datetime.now(timezone.utc).strftime('%Y-%m-%d'))")
           echo "date_tag=${DATE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "Report date: ${DATE_TAG}"
 
           FLAGS="--no-email"   # email is handled by the dedicated step below
           if [ -n "${{ github.event.inputs.ticker }}" ]; then
@@ -112,10 +126,12 @@ jobs:
           python morning_report.py $FLAGS
 
       # ── 6. Email the combined PDF via SendGrid ────────────────────────────────
-      # Runs only when the report step succeeded AND no_email is not 'true'.
       # --date pins the PDF lookup to the exact date generated in step 5.
-      # send_morning_email.py exits 1 if no PDF from that date is found (step
-      # turns red) rather than silently attaching a stale report from a prior run.
+      # send_morning_email.py exits 1 if no PDF from that date is found — step
+      # turns red rather than silently attaching a stale report from a prior run.
+      # Each recipient in recipients.txt gets its own independent SendGrid send
+      # (separate personalizations) so Gmail FROM==TO suppression does not drop
+      # delivery to marklangston3@gmail.com.
       - name: Email morning report via SendGrid
         if: success() && github.event.inputs.no_email != 'true'
         env:
@@ -141,3 +157,28 @@ jobs:
             reports/morning_report_*.pdf
             morning_report.log
           retention-days: 30
+
+      # ── 9. Deploy GitHub Pages dashboard ─────────────────────────────────────
+      # CRITICAL: GITHUB_TOKEN pushes inside Actions do NOT trigger push-based
+      # workflows (GitHub prevents this to avoid infinite loops).  That means
+      # morning_report.py's git push of dashboard_data.json never activates
+      # pages.yml.  Fix: deploy Pages directly here, every successful run.
+      - name: Upload Pages artifact
+        if: success()
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/
+
+      - name: Deploy to GitHub Pages
+        id: deploy-pages
+        if: success()
+        uses: actions/deploy-pages@v4
+
+      - name: Print dashboard URL
+        if: success()
+        run: |
+          echo "### ✅ Dashboard deployed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🌐 **${{ steps.deploy-pages.outputs.page_url }}**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Report date: **${{ steps.generate.outputs.date_tag }}**" >> $GITHUB_STEP_SUMMARY
