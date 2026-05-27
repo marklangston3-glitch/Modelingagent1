@@ -72,14 +72,26 @@ def main() -> None:
     date_pretty = datetime.strptime(date_tag, "%Y-%m-%d").strftime("%B %d, %Y")
 
     # ── Find PDF ──────────────────────────────────────────────────────────────
+    # Look for today's combined report first.
     pdf_path = f"reports/morning_report_{date_tag}.pdf"
+
     if not os.path.exists(pdf_path):
-        matches = sorted(glob.glob("reports/morning_report_*.pdf"))
-        if not matches:
-            print(f"No combined PDF found under reports/ for {date_tag} — skipping email.")
-            sys.exit(0)
-        pdf_path = matches[-1]
-        print(f"Note: today's PDF not found; using {os.path.basename(pdf_path)}")
+        # Fallback A: any other PDF generated today (individual ticker reports)
+        today_pdfs = sorted(glob.glob(f"reports/*_{date_tag}.pdf"))
+        if today_pdfs:
+            pdf_path = today_pdfs[-1]
+            print(f"Note: combined PDF not found for {date_tag}; attaching {os.path.basename(pdf_path)}")
+        else:
+            # Fallback B — hard fail rather than silently send yesterday's report
+            stale = sorted(glob.glob("reports/morning_report_*.pdf"))
+            if stale:
+                print(f"ERROR: No report found for {date_tag}.")
+                print(f"  Latest available (NOT sending): {os.path.basename(stale[-1])}")
+                print("  Re-run the morning-report workflow to generate a fresh PDF for today.")
+            else:
+                print(f"ERROR: No PDF found anywhere under reports/ for {date_tag}.")
+                print("  Run morning_report.py first.")
+            sys.exit(1)
 
     with open(pdf_path, "rb") as fh:
         encoded = base64.b64encode(fh.read()).decode()
@@ -151,8 +163,11 @@ def main() -> None:
 """
 
     # ── SendGrid payload ──────────────────────────────────────────────────────
+    # Use one personalization per recipient so Gmail does not suppress delivery
+    # when FROM == one of the TO addresses (a self-send loop suppression issue).
+    # Each recipient gets an independent delivery, identical subject + body.
     payload = {
-        "personalizations": [{"to": [{"email": e} for e in TO_EMAILS]}],
+        "personalizations": [{"to": [{"email": e}]} for e in TO_EMAILS],
         "from":    {"email": FROM_EMAIL, "name": FROM_NAME},
         "subject": subject,
         "content": [

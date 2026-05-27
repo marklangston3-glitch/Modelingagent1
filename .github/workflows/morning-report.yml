@@ -90,12 +90,18 @@ jobs:
       # FROM address (marklangston3@gmail.com) is hardcoded in morning_report.py.
       # Verify it once with: python verify_sender.py --register
       # If SENDGRID_API_KEY is absent, email is skipped silently; PDF still builds.
+      # date_tag is captured here and forwarded to the email step so both steps
+      # always target the same calendar date (avoids UTC midnight edge cases).
       - name: Run morning_report.py
         id: generate
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SENDGRID_API_KEY:  ${{ secrets.SENDGRID_API_KEY }}
         run: |
+          # Capture the UTC date at the start of this step — used by email step.
+          DATE_TAG=$(python -c "from datetime import datetime,timezone; print(datetime.now(timezone.utc).strftime('%Y-%m-%d'))")
+          echo "date_tag=${DATE_TAG}" >> "$GITHUB_OUTPUT"
+
           FLAGS="--no-email"   # email is handled by the dedicated step below
           if [ -n "${{ github.event.inputs.ticker }}" ]; then
             FLAGS="$FLAGS --ticker ${{ github.event.inputs.ticker }}"
@@ -107,13 +113,14 @@ jobs:
 
       # ── 6. Email the combined PDF via SendGrid ────────────────────────────────
       # Runs only when the report step succeeded AND no_email is not 'true'.
-      # send_morning_email.py is a standalone script — no YAML heredoc issues.
-      # Exits non-zero on API error so this step shows red in Actions.
+      # --date pins the PDF lookup to the exact date generated in step 5.
+      # send_morning_email.py exits 1 if no PDF from that date is found (step
+      # turns red) rather than silently attaching a stale report from a prior run.
       - name: Email morning report via SendGrid
         if: success() && github.event.inputs.no_email != 'true'
         env:
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
-        run: python send_morning_email.py
+        run: python send_morning_email.py --date "${{ steps.generate.outputs.date_tag }}"
 
       # ── 7. Show log in Actions summary ───────────────────────────────────────
       - name: Print report log (last 100 lines)
