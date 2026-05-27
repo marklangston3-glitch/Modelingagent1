@@ -1,6 +1,11 @@
 name: Deploy GitHub Pages Dashboard
 
-# Deploys docs/ to GitHub Pages on every push that touches docs/.
+# Deploys docs/ to GitHub Pages.
+#
+# This workflow is for MANUAL re-deploys only.
+# Automated deployment happens at the end of every morning-report.yml run
+# (steps 9-11 in that workflow).  Keeping this separate push trigger removed
+# so it does not race with morning-report.yml for the same Pages environment.
 #
 # One-time repo setup (do this once):
 #   Settings → Pages → Source → GitHub Actions
@@ -9,11 +14,7 @@ name: Deploy GitHub Pages Dashboard
 #   https://marklangston3-glitch.github.io/Modelingagent1/
 
 on:
-  push:
-    branches:
-      - claude/agent-tools-edgar-setup-PimAK
-
-  # Run manually from the Actions tab at any time
+  # Run manually from the Actions tab at any time (e.g. to force a re-deploy)
   workflow_dispatch:
 
 permissions:

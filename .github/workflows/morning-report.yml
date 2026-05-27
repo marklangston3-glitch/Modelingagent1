@@ -43,11 +43,6 @@ permissions:
   pages:    write   # deploy dashboard at end of every run
   id-token: write   # OIDC token required for actions/deploy-pages
 
-# ── Prevent two runs deploying Pages at the same time ─────────────────────────
-concurrency:
-  group: pages
-  cancel-in-progress: true
-
 # ── Job ───────────────────────────────────────────────────────────────────────
 jobs:
   report:
