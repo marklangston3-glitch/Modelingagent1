@@ -21,7 +21,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: claude/agent-tools-edgar-setup-PimAK
+          ref: main
           fetch-depth: 1
 
       - name: Write timestamp and commit
@@ -30,7 +30,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # Pull first to avoid push rejection if there were other commits
-          git pull --rebase origin claude/agent-tools-edgar-setup-PimAK || true
+          git pull --rebase origin main || true
 
           echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" > .keepalive
           git add .keepalive
@@ -39,6 +39,6 @@ jobs:
             echo "Nothing changed — skipping commit."
           else
             git commit -m "keepalive: $(date -u +%Y-%m-%d) — keep scheduled workflows active"
-            git push -u origin claude/agent-tools-edgar-setup-PimAK
+            git push -u origin main
             echo "✓ Keep-alive commit pushed."
           fi

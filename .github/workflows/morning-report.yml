@@ -33,6 +33,7 @@ on:
   # workflow on-demand (e.g. "run today's report right now").
   push:
     branches:
+      - main
       - claude/agent-tools-edgar-setup-PimAK
     paths:
       - '.trigger_morning_report'
@@ -58,7 +59,7 @@ jobs:
       - name: Checkout repo (working branch)
         uses: actions/checkout@v4
         with:
-          ref: claude/agent-tools-edgar-setup-PimAK
+          ref: main
           fetch-depth: 0
 
       # ── 2. Python ────────────────────────────────────────────────────────────
