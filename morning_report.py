@@ -531,10 +531,14 @@ SCORING GUIDE for Investment Profile (1–10):
   conviction_score: overall analyst conviction 1–10 (10 = highest conviction Buy)"""
 
     log.info("  Calling Claude (%s) for %s …", MODEL, ticker)
-    msg = client.messages.create(
-        model=MODEL, max_tokens=2500,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    try:
+        msg = client.messages.create(
+            model=MODEL, max_tokens=2500,
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except Exception as api_err:
+        log.error("  Claude API error for %s: %s", ticker, api_err)
+        return dict(_JSON_DEFAULTS)
     raw = msg.content[0].text
 
     # ── Parse JSON block ──────────────────────────────────────────────────────
