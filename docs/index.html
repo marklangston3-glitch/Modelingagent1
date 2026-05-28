@@ -220,29 +220,44 @@
     /* ── Report links ────────────────────────────────────────────────────── */
     .report-links {
       display: flex;
-      gap: 8px;
+      gap: 6px;
+      flex-wrap: wrap;
       margin-top: 10px;
       padding-top: 8px;
       border-top: 1px solid var(--lgray);
+      align-items: center;
     }
     .report-link {
       flex: 1;
+      min-width: 0;
       text-align: center;
-      padding: 6px;
+      padding: 7px 6px;
       background: var(--navy);
       color: var(--white);
       text-decoration: none;
       font-size: 10px;
       border-radius: 3px;
       transition: background 0.15s;
+      white-space: nowrap;
     }
     .report-link:hover { background: var(--blue); }
-    .report-link.secondary {
-      background: var(--lgray);
-      color: var(--navy);
-      border: 1px solid var(--line);
+    /* View button — accent blue, larger touch target */
+    .report-link.view-btn {
+      background: var(--blue);
+      font-size: 10.5px;
+      font-weight: bold;
     }
-    .report-link.secondary:hover { background: var(--line); }
+    .report-link.view-btn:hover { background: #0C3F8A; }
+    /* Download icon — small, gray */
+    .report-link.dl-btn {
+      flex: 0 0 auto;
+      padding: 7px 9px;
+      background: var(--lgray);
+      color: var(--dgray);
+      border: 1px solid var(--line);
+      font-size: 11px;
+    }
+    .report-link.dl-btn:hover { background: var(--line); color: var(--navy); }
 
     /* ── Macro strip ─────────────────────────────────────────────────────── */
     .macro-strip {
@@ -498,8 +513,17 @@ function fmtCap(v) {
   return "$" + v.toLocaleString();
 }
 
-function githubRawUrl(path) {
-  return "https://github.com/marklangston3-glitch/Modelingagent1/raw/refs/heads/claude/agent-tools-edgar-setup-PimAK/" + path;
+// ── URL helpers ───────────────────────────────────────────────────────────
+const REPO_RAW = "https://raw.githubusercontent.com/marklangston3-glitch/Modelingagent1/claude/agent-tools-edgar-setup-PimAK/";
+
+function rawUrl(path) {
+  return REPO_RAW + path;
+}
+
+// Open PDF in Google Docs Viewer — no download, works in any browser/device.
+// Requires the repo to be public (raw.githubusercontent.com must be accessible).
+function viewerUrl(path) {
+  return "https://docs.google.com/viewer?url=" + encodeURIComponent(rawUrl(path));
 }
 
 // ── Build ticker card ──────────────────────────────────────────────────────
@@ -518,16 +542,16 @@ function buildCard(ticker, d) {
     d.institutional_signal ? signalBadge(d.institutional_signal, "Inst.")    : "",
   ].filter(Boolean).join("");
 
-  // Report links
-  const combinedUrl = d.combined_report_url
-    ? `<a class="report-link" href="${githubRawUrl(d.combined_report_url)}" target="_blank">📄 Full Report</a>`
-    : "";
-  const tickerUrl = d.ticker_report_url
-    ? `<a class="report-link secondary" href="${githubRawUrl(d.ticker_report_url)}" target="_blank">${ticker} Only</a>`
-    : "";
-  const weeklyUrl = d.weekly_report_url
-    ? `<a class="report-link secondary" href="${githubRawUrl(d.weekly_report_url)}" target="_blank">📊 Weekly</a>`
-    : "";
+  // Report links — View button opens inline in browser; ⬇ downloads the raw PDF
+  const combinedUrl = d.combined_report_url ? `
+    <a class="report-link view-btn" href="${viewerUrl(d.combined_report_url)}" target="_blank">📖 View Report</a>
+    <a class="report-link dl-btn"   href="${rawUrl(d.combined_report_url)}"    target="_blank" title="Download PDF">⬇</a>` : "";
+  const tickerUrl = d.ticker_report_url ? `
+    <a class="report-link view-btn" href="${viewerUrl(d.ticker_report_url)}"   target="_blank">📖 ${ticker}</a>
+    <a class="report-link dl-btn"   href="${rawUrl(d.ticker_report_url)}"      target="_blank" title="Download PDF">⬇</a>` : "";
+  const weeklyUrl = d.weekly_report_url ? `
+    <a class="report-link view-btn" href="${viewerUrl(d.weekly_report_url)}"   target="_blank">📊 Weekly</a>
+    <a class="report-link dl-btn"   href="${rawUrl(d.weekly_report_url)}"      target="_blank" title="Download PDF">⬇</a>` : "";
 
   return `
 <div class="ticker-card">

@@ -1,4 +1,4 @@
-2026-05-27T2
+2026-05-28T3
 # Pushing a change to this file triggers an immediate morning report run.
-# The morning-report.yml workflow watches this path via its push trigger.
-# Update the date/revision line and push to kick a run on any day.
+# morning-report.yml watches this path via its push trigger.
+# Update the date/revision line and push to kick a run on demand.
