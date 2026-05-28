@@ -17,7 +17,7 @@ EMAIL          = "marklangston3@gmail.com"
 
 # ── Repository ────────────────────────────────────────────────────────────────
 REPO_DIR   = Path(__file__).parent.resolve()
-BRANCH     = "claude/agent-tools-edgar-setup-PimAK"
+BRANCH     = "main"
 GIT_REMOTE = "origin"
 
 # ── Email Recipients ──────────────────────────────────────────────────────────

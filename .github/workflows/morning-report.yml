@@ -34,7 +34,6 @@ on:
   push:
     branches:
       - main
-      - claude/agent-tools-edgar-setup-PimAK
     paths:
       - '.trigger_morning_report'
 
