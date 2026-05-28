@@ -2076,8 +2076,10 @@ def _sendgrid_send(
     if isinstance(to_emails, str):
         to_emails = [to_emails]
 
+    # One personalization per recipient so Gmail FROM==TO suppression cannot
+    # drop marklangston3@gmail.com when it also appears as the FROM address.
     payload: dict = {
-        "personalizations": [{"to": [{"email": e} for e in to_emails]}],
+        "personalizations": [{"to": [{"email": e}]} for e in to_emails],
         "from": {"email": from_email, "name": from_name},
         "subject": subject,
         "content": [{"type": "text/html", "value": html_body}],
