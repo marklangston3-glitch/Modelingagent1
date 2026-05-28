@@ -183,3 +183,9 @@ https://claude.ai/code/session_014hesikAtm8zzGNsXbYWmGV → [claude/agent-tools-
 2026-05-26 23:16:03,459 [INFO]   Dashboard JSON: docs/dashboard_data.json
 2026-05-26 23:16:03,459 [INFO] Done. Generated: TEM_morning_report_2026-05-26.pdf
 2026-05-26 23:16:03,459 [INFO] ======================================================================
+2026-05-28 13:24:35,802 [INFO]   Fetching macro & sector ETF data …
+2026-05-28 13:24:38,057 [ERROR] $^DXY: possibly delisted; no price data found  (period=5d)
+2026-05-28 13:25:05,568 [INFO]   Fetching macro & sector ETF data …
+2026-05-28 13:25:07,477 [ERROR] $^DXY: possibly delisted; no price data found  (period=5d)
+2026-05-28 13:25:09,418 [INFO]   Calling Claude (claude-opus-4-7) for TEM …
+2026-05-28 13:25:09,551 [INFO] HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 400 Bad Request"
