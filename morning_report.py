@@ -121,6 +121,9 @@ RCOL_W   = 212
 FTR_DIV_Y = 80
 FTR_BOT   = 36
 
+# Full content width (used by draw_prospects_page and page-2 layout)
+FULL_W = 540  # 576 - 36 (right margin)
+
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -2583,23 +2586,38 @@ def main():
     # Combined PDF (with front page) — only when running all tickers
     if len(all_ticker_data) > 1:
         log.info("─── Building combined PDF ───")
-        combined = build_combined_pdf(all_ticker_data, macro_data, macro_text,
-                                      prospects=prospects)
-        pdf_list.append(combined)
+        try:
+            combined = build_combined_pdf(all_ticker_data, macro_data, macro_text,
+                                          prospects=prospects)
+            pdf_list.append(combined)
+        except Exception as exc:
+            log.error("Combined PDF build FAILED: %s", exc, exc_info=True)
 
     # Individual 2-page ticker PDFs
     for td in all_ticker_data:
         log.info("─── Building %s PDF ───", td["ticker"])
-        p = build_ticker_pdf(td)
-        pdf_list.append(p)
+        try:
+            p = build_ticker_pdf(td)
+            pdf_list.append(p)
+        except Exception as exc:
+            log.error("Ticker PDF build FAILED for %s: %s", td["ticker"], exc, exc_info=True)
+
+    if not pdf_list:
+        log.error("All PDF builds failed — no PDFs generated.")
+        sys.exit(1)
 
     # ── 4. Dashboard JSON ──────────────────────────────────────────────────────
     log.info("─── Updating GitHub Pages dashboard ───")
-    dash_path = write_dashboard_json(all_ticker_data, macro_data, prospects=prospects)
+    try:
+        dash_path = write_dashboard_json(all_ticker_data, macro_data, prospects=prospects)
+    except Exception as exc:
+        log.error("Dashboard JSON failed (non-fatal): %s", exc, exc_info=True)
+        dash_path = None
 
     # ── 5. Push ───────────────────────────────────────────────────────────────
     if not args.no_push:
-        if git_push_reports(pdf_list, extra_files=[dash_path]):
+        extra = [dash_path] if dash_path else None
+        if git_push_reports(pdf_list, extra_files=extra):
             log.info("Reports + dashboard pushed to %s:%s", GIT_REMOTE, BRANCH)
         else:
             log.warning("Push failed — PDFs saved locally in reports/")
