@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       ticker:
-        description: 'Single ticker to report on (leave blank for all: TEM, RGTI, BBAI, NEE)'
+        description: 'Single ticker to report on (leave blank for all)'
         required: false
         default: ''
         type: string
@@ -28,34 +28,30 @@ on:
         type: choice
         options: ['false', 'true']
 
-  # Push .trigger_morning_report to fire an immediate manual run without
-  # opening GitHub Actions in a browser.  This file is how we kick the
-  # workflow on-demand (e.g. "run today's report right now").
+  # Push .trigger_morning_report to fire an immediate run on demand.
   push:
     branches:
       - main
     paths:
       - '.trigger_morning_report'
 
-# ── Permissions ───────────────────────────────────────────────────────────────
-permissions:
-  contents: write   # morning_report.py pushes the PDF via git
-  pages:    write   # deploy dashboard at end of every run
-  id-token: write   # OIDC token required for actions/deploy-pages
-
-# ── Job ───────────────────────────────────────────────────────────────────────
+# ── Job 1: Generate PDF + email ───────────────────────────────────────────────
+# No environment gate here — this job runs unconditionally so the report and
+# email are never blocked by github-pages environment protection rules.
 jobs:
   report:
     name: Generate Morning Report PDF
     runs-on: ubuntu-latest
-    timeout-minutes: 30   # prospect_finder adds ~10 min on full runs
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy-pages.outputs.page_url }}
+    timeout-minutes: 30
+    permissions:
+      contents: write   # morning_report.py pushes the PDF via git
+
+    outputs:
+      date_tag: ${{ steps.generate.outputs.date_tag }}
 
     steps:
-      # ── 1. Checkout (fresh — picks up any watchdog commits from 12:00 run) ───
-      - name: Checkout repo (working branch)
+      # ── 1. Checkout ─────────────────────────────────────────────────────────
+      - name: Checkout repo
         uses: actions/checkout@v4
         with:
           ref: main
@@ -71,13 +67,13 @@ jobs:
       - name: Install dependencies
         run: pip install --quiet -r requirements.txt
 
-      # ── 3. Git identity (morning_report.py pushes the PDF) ───────────────────
+      # ── 3. Git identity ───────────────────────────────────────────────────────
       - name: Configure git identity
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      # ── 4. SendGrid pre-flight check ─────────────────────────────────────────
+      # ── 4. SendGrid pre-flight ────────────────────────────────────────────────
       - name: SendGrid pre-flight (sender status)
         if: always()
         env:
@@ -85,33 +81,26 @@ jobs:
         run: |
           echo "### SendGrid Pre-flight Check" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-
           if [ -z "$SENDGRID_API_KEY" ]; then
             echo "SENDGRID_API_KEY: NOT SET — email delivery will be skipped." >> $GITHUB_STEP_SUMMARY
-            echo "  Add it: GitHub → Settings → Secrets → Actions → New repository secret" >> $GITHUB_STEP_SUMMARY
           else
             echo "SENDGRID_API_KEY: SET (prefix: ${SENDGRID_API_KEY:0:8}…)" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
             python verify_sender.py --check >> $GITHUB_STEP_SUMMARY 2>&1 || true
           fi
-
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-      # ── 5. Generate report ───────────────────────────────────────────────────
-      # date_tag is captured here and forwarded to the email step so both steps
-      # always target the same calendar date (eliminates UTC midnight edge cases).
+      # ── 5. Generate report ────────────────────────────────────────────────────
       - name: Run morning_report.py
         id: generate
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SENDGRID_API_KEY:  ${{ secrets.SENDGRID_API_KEY }}
         run: |
-          # Capture the UTC date at the start of this step.
           DATE_TAG=$(python -c "from datetime import datetime,timezone; print(datetime.now(timezone.utc).strftime('%Y-%m-%d'))")
           echo "date_tag=${DATE_TAG}" >> "$GITHUB_OUTPUT"
           echo "Report date: ${DATE_TAG}"
 
-          FLAGS="--no-email"   # email is handled by the dedicated step below
+          FLAGS="--no-email"
           if [ -n "${{ github.event.inputs.ticker }}" ]; then
             FLAGS="$FLAGS --ticker ${{ github.event.inputs.ticker }}"
           fi
@@ -120,20 +109,14 @@ jobs:
           fi
           python morning_report.py $FLAGS
 
-      # ── 6. Email the combined PDF via SendGrid ────────────────────────────────
-      # --date pins the PDF lookup to the exact date generated in step 5.
-      # send_morning_email.py exits 1 if no PDF from that date is found — step
-      # turns red rather than silently attaching a stale report from a prior run.
-      # Each recipient in recipients.txt gets its own independent SendGrid send
-      # (separate personalizations) so Gmail FROM==TO suppression does not drop
-      # delivery to marklangston3@gmail.com.
+      # ── 6. Email via SendGrid ─────────────────────────────────────────────────
       - name: Email morning report via SendGrid
         if: success() && github.event.inputs.no_email != 'true'
         env:
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
         run: python send_morning_email.py --date "${{ steps.generate.outputs.date_tag }}"
 
-      # ── 7. Show log in Actions summary ───────────────────────────────────────
+      # ── 7. Print log ──────────────────────────────────────────────────────────
       - name: Print report log (last 100 lines)
         if: always()
         run: |
@@ -142,7 +125,7 @@ jobs:
           tail -100 morning_report.log >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "(log not found)" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-      # ── 8. Upload PDF + log as artifacts (30-day retention) ──────────────────
+      # ── 8. Upload PDF + log artifacts (30-day) ────────────────────────────────
       - name: Upload report artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -153,21 +136,35 @@ jobs:
             morning_report.log
           retention-days: 30
 
-      # ── 9. Deploy GitHub Pages dashboard ─────────────────────────────────────
-      # Pages deployment requires Settings → Pages → Source = "GitHub Actions".
-      # continue-on-error: true so a Pages failure does NOT mark the whole
-      # workflow as failed — PDF generation and email delivery still count.
+      # ── 9. Stage dashboard for Pages (artifact only, no deploy yet) ───────────
+      # actions/deploy-pages in the next job picks this up automatically.
       - name: Upload Pages artifact
         if: success()
-        continue-on-error: true
         uses: actions/upload-pages-artifact@v3
         with:
           path: docs/
 
+# ── Job 2: Deploy GitHub Pages ────────────────────────────────────────────────
+# Separate job so environment protection on github-pages never blocks
+# report generation or email delivery.  continue-on-error at job level
+# means the overall workflow is green when the report succeeds, even if
+# Pages is misconfigured.
+  deploy-pages:
+    name: Deploy GitHub Pages Dashboard
+    needs: report
+    if: needs.report.result == 'success'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy-pages.outputs.page_url }}
+    permissions:
+      pages:    write
+      id-token: write
+
+    steps:
       - name: Deploy to GitHub Pages
         id: deploy-pages
-        if: success()
-        continue-on-error: true
         uses: actions/deploy-pages@v4
 
       - name: Print dashboard URL
@@ -177,7 +174,7 @@ jobs:
             echo "### ✅ Dashboard deployed" >> $GITHUB_STEP_SUMMARY
             echo "🌐 **${{ steps.deploy-pages.outputs.page_url }}**" >> $GITHUB_STEP_SUMMARY
           else
-            echo "### ⚠️ Dashboard deploy failed (PDF + email still delivered)" >> $GITHUB_STEP_SUMMARY
-            echo "Fix: Settings → Pages → Source → GitHub Actions" >> $GITHUB_STEP_SUMMARY
+            echo "### ⚠️ Pages deploy failed — report + email still delivered" >> $GITHUB_STEP_SUMMARY
+            echo "Fix: Settings → Environments → github-pages → add main to allowed branches" >> $GITHUB_STEP_SUMMARY
           fi
-          echo "Report date: **${{ steps.generate.outputs.date_tag }}**" >> $GITHUB_STEP_SUMMARY
+          echo "Report date: **${{ needs.report.outputs.date_tag }}**" >> $GITHUB_STEP_SUMMARY
