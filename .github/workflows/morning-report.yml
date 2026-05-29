@@ -154,12 +154,12 @@ jobs:
           retention-days: 30
 
       # ── 9. Deploy GitHub Pages dashboard ─────────────────────────────────────
-      # CRITICAL: GITHUB_TOKEN pushes inside Actions do NOT trigger push-based
-      # workflows (GitHub prevents this to avoid infinite loops).  That means
-      # morning_report.py's git push of dashboard_data.json never activates
-      # pages.yml.  Fix: deploy Pages directly here, every successful run.
+      # Pages deployment requires Settings → Pages → Source = "GitHub Actions".
+      # continue-on-error: true so a Pages failure does NOT mark the whole
+      # workflow as failed — PDF generation and email delivery still count.
       - name: Upload Pages artifact
         if: success()
+        continue-on-error: true
         uses: actions/upload-pages-artifact@v3
         with:
           path: docs/
@@ -167,13 +167,17 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deploy-pages
         if: success()
+        continue-on-error: true
         uses: actions/deploy-pages@v4
 
       - name: Print dashboard URL
-        if: success()
+        if: always()
         run: |
-          echo "### ✅ Dashboard deployed" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🌐 **${{ steps.deploy-pages.outputs.page_url }}**" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.deploy-pages.outcome }}" = "success" ]; then
+            echo "### ✅ Dashboard deployed" >> $GITHUB_STEP_SUMMARY
+            echo "🌐 **${{ steps.deploy-pages.outputs.page_url }}**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ⚠️ Dashboard deploy failed (PDF + email still delivered)" >> $GITHUB_STEP_SUMMARY
+            echo "Fix: Settings → Pages → Source → GitHub Actions" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "Report date: **${{ steps.generate.outputs.date_tag }}**" >> $GITHUB_STEP_SUMMARY

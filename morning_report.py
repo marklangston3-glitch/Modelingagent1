@@ -2347,10 +2347,12 @@ def git_push_reports(pdf_paths: list[Path], extra_files: list[Path] | None = Non
     ]
     for cmd in cmds:
         r = subprocess.run(cmd, cwd=str(REPO_DIR), capture_output=True, text=True)
-        if r.returncode != 0 and "nothing to commit" not in r.stdout:
-            log.error("git failed: %s\n%s", " ".join(cmd), r.stderr)
+        out = (r.stdout + r.stderr).strip()
+        if r.returncode != 0 and "nothing to commit" not in r.stdout and "nothing to commit" not in r.stderr:
+            log.error("git FAILED (rc=%d): %s\nstdout: %s\nstderr: %s",
+                      r.returncode, " ".join(cmd), r.stdout.strip(), r.stderr.strip())
             return False
-        log.info("$ %s → %s", " ".join(cmd), r.stdout.strip() or r.stderr.strip())
+        log.info("$ %s → %s", " ".join(cmd), out or "(ok)")
     return True
 
 
