@@ -59,6 +59,7 @@ from options_flow          import get_options_flow
 from insider_tracker       import get_insider_activity
 from institutional_tracker import get_institutional_ownership
 from prospect_finder       import find_prospects
+from market_intelligence   import collect_market_intelligence
 
 # ════════════════════════════════════════════════════════════════════════════
 #  RUNTIME CONSTANTS
@@ -1417,6 +1418,580 @@ def draw_page2_header(c, ticker: str, company: str, section_title: str):
 
 
 # ════════════════════════════════════════════════════════════════════════════
+#  CANVAS DRAWING — MARKET-WIDE INTELLIGENCE (PAGE 1)
+# ════════════════════════════════════════════════════════════════════════════
+
+def draw_market_intelligence_page(c, market_intel: dict):
+    """Draw the Market-Wide Intelligence page (page 1 of 2) onto the current canvas."""
+    st = _styles()
+    date_str = datetime.now(timezone.utc).strftime("%B %d, %Y")
+
+    # ── Header band ───────────────────────────────────────────────────────────
+    c.setFillColor(GS_NAVY)
+    c.rect(0, 740, PW, 52, fill=1, stroke=0)
+    c.setFont("Helvetica-Bold", 14)
+    c.setFillColor(white)
+    c.drawString(36, 770, "MARKET-WIDE OPTIONS INTELLIGENCE")
+    c.setFont("Helvetica", 8)
+    c.setFillColor(HexColor("#A8C8F0"))
+    c.drawString(36, 757, "CROSS-SECTOR FLOW ANALYSIS  |  UNUSUAL ACTIVITY  |  CREDIT & ROTATION")
+    c.setFont("Helvetica-Bold", 9)
+    c.setFillColor(white)
+    c.drawRightString(576, 770, FIRM_NAME_U)
+    c.setFont("Helvetica", 7.5)
+    c.setFillColor(HexColor("#A8C8F0"))
+    c.drawRightString(576, 757, date_str)
+
+    # Gold accent line
+    c.setStrokeColor(GOLD_COL)
+    c.setLineWidth(2.0)
+    c.line(0, 740, PW, 740)
+
+    y_cursor = 730
+
+    # ── Section 1: Sector Options Flow ────────────────────────────────────────
+    c.setFillColor(GS_NAVY)
+    c.rect(36, y_cursor - 14, FULL_W, 14, fill=1, stroke=0)
+    c.setFont("Helvetica-Bold", 7)
+    c.setFillColor(white)
+    c.drawString(41, y_cursor - 10, "SECTOR OPTIONS FLOW  —  PUT/CALL RATIO RANKING")
+    y_cursor -= 18
+
+    sector_flow = market_intel.get("sector_flow", {})
+    sectors = sector_flow.get("sectors", [])
+
+    hdr_c = ParagraphStyle("SFHC", fontName="Helvetica-Bold", fontSize=6.5,
+                           textColor=white, alignment=TA_CENTER)
+    hdr_l = ParagraphStyle("SFHL", fontName="Helvetica-Bold", fontSize=6.5,
+                           textColor=white, alignment=TA_LEFT)
+    cell_c = ParagraphStyle("SFC", fontName="Helvetica", fontSize=6.5,
+                            alignment=TA_CENTER)
+    cell_l = ParagraphStyle("SFL", fontName="Helvetica", fontSize=6.5,
+                            alignment=TA_LEFT)
+
+    sf_rows = [[
+        Paragraph("SECTOR", hdr_l),
+        Paragraph("ETF", hdr_c),
+        Paragraph("P/C RATIO", hdr_c),
+        Paragraph("CALL VOL", hdr_c),
+        Paragraph("PUT VOL", hdr_c),
+        Paragraph("SIGNAL", hdr_c),
+        Paragraph("UNUSUAL", hdr_c),
+    ]]
+
+    for s in sectors:
+        sig = s.get("signal", "neutral")
+        if sig == "bullish":
+            sig_col = "#1A5276"
+        elif sig == "bearish":
+            sig_col = "#7B241C"
+        else:
+            sig_col = "#4A5568"
+        unusual_str = "YES" if s.get("unusual_volume", False) else "—"
+        sf_rows.append([
+            Paragraph(xe(str(s.get("sector", ""))), cell_l),
+            Paragraph(xe(str(s.get("etf", ""))), cell_c),
+            Paragraph(f'{s.get("put_call_ratio", 0):.2f}', cell_c),
+            Paragraph(f'{s.get("call_volume", 0):,.0f}', cell_c),
+            Paragraph(f'{s.get("put_volume", 0):,.0f}', cell_c),
+            Paragraph(f'<font color="{sig_col}"><b>{xe(sig.upper())}</b></font>', cell_c),
+            Paragraph(unusual_str, cell_c),
+        ])
+
+    sf_cw = [100, 42, 62, 72, 72, 62, 56]
+    sf_tbl = Table(sf_rows, colWidths=sf_cw)
+    sf_style_cmds = [
+        ("BACKGROUND",    (0, 0), (-1, 0), GS_NAVY),
+        ("TOPPADDING",    (0, 0), (-1, -1), 2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 3),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 3),
+        ("LINEBELOW",     (0, 0), (-1, -1), 0.3, GS_LINE),
+        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+    ]
+    for i in range(1, len(sf_rows)):
+        sf_style_cmds.append(("BACKGROUND", (0, i), (-1, i),
+                              GS_LGRAY if i % 2 == 0 else white))
+    sf_tbl.setStyle(TableStyle(sf_style_cmds))
+
+    # Estimate table height: header + data rows
+    sf_h = min(14 * len(sf_rows) + 4, 180)
+    sf_frame = Frame(36, y_cursor - sf_h, FULL_W, sf_h,
+                     leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0,
+                     showBoundary=0)
+    sf_frame.addFromList([sf_tbl], c)
+    y_cursor -= sf_h + 6
+
+    # ── Section 2: Unusual Market-Wide Activity ───────────────────────────────
+    c.setFillColor(GS_NAVY)
+    c.rect(36, y_cursor - 14, FULL_W, 14, fill=1, stroke=0)
+    c.setFont("Helvetica-Bold", 7)
+    c.setFillColor(white)
+    c.drawString(41, y_cursor - 10, "UNUSUAL MARKET-WIDE ACTIVITY  —  TOP 10")
+    y_cursor -= 18
+
+    unusual = market_intel.get("unusual_activity", [])[:10]
+    ua_story = []
+    ua_style = ParagraphStyle("UA", fontName="Helvetica", fontSize=7, leading=10,
+                              textColor=GS_TEXT, leftIndent=8, firstLineIndent=-6,
+                              spaceAfter=1)
+    for item in unusual:
+        ticker = item.get("ticker", "?")
+        sector = item.get("sector", "")
+        desc = item.get("description", item.get("activity", ""))
+        impl = item.get("implication", "")
+        line = f"<b>{xe(ticker)}</b> ({xe(sector)}): {xe(desc)}"
+        if impl:
+            line += f" — <i>{xe(impl)}</i>"
+        ua_story.append(Paragraph(f"• {line}", ua_style))
+    if not ua_story:
+        ua_story.append(Paragraph("• No unusual activity detected.", ua_style))
+
+    ua_h = min(len(ua_story) * 12 + 4, 130)
+    ua_frame = Frame(36, y_cursor - ua_h, FULL_W, ua_h,
+                     leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0,
+                     showBoundary=0)
+    ua_frame.addFromList(ua_story, c)
+    y_cursor -= ua_h + 6
+
+    # ── Section 3: Rotation Analysis ──────────────────────────────────────────
+    c.setFillColor(GS_NAVY)
+    c.rect(36, y_cursor - 14, FULL_W, 14, fill=1, stroke=0)
+    c.setFont("Helvetica-Bold", 7)
+    c.setFillColor(white)
+    c.drawString(41, y_cursor - 10, "ROTATION ANALYSIS  —  AI-GENERATED ASSESSMENT")
+    y_cursor -= 18
+
+    rot_text = market_intel.get("rotation_analysis", "")
+    rot_style = ParagraphStyle("RA", fontName="Helvetica", fontSize=7.5, leading=11,
+                               textColor=GS_TEXT, alignment=TA_JUSTIFY)
+    rot_story = []
+    if rot_text:
+        rot_story.append(Paragraph(xe(rot_text), rot_style))
+    else:
+        rot_story.append(Paragraph("Rotation analysis unavailable.", rot_style))
+
+    rot_h = min(80, max(40, y_cursor - FTR_DIV_Y - 200))
+    rot_frame = Frame(36, y_cursor - rot_h, FULL_W, rot_h,
+                      leftPadding=4, rightPadding=4, topPadding=2, bottomPadding=0,
+                      showBoundary=0)
+    rot_frame.addFromList(rot_story, c)
+    y_cursor -= rot_h + 6
+
+    # ── Section 4: Credit Market Signals ──────────────────────────────────────
+    c.setFillColor(GS_NAVY)
+    c.rect(36, y_cursor - 14, FULL_W, 14, fill=1, stroke=0)
+    c.setFont("Helvetica-Bold", 7)
+    c.setFillColor(white)
+    c.drawString(41, y_cursor - 10, "CREDIT MARKET SIGNALS")
+    y_cursor -= 18
+
+    credit = market_intel.get("credit_signals", {})
+    cr_rows = []
+    cr_hdr_c = ParagraphStyle("CRHC", fontName="Helvetica-Bold", fontSize=6.5,
+                              textColor=white, alignment=TA_CENTER)
+    cr_hdr_l = ParagraphStyle("CRHL", fontName="Helvetica-Bold", fontSize=6.5,
+                              textColor=white, alignment=TA_LEFT)
+    cr_cell_c = ParagraphStyle("CRC", fontName="Helvetica", fontSize=6.5,
+                               alignment=TA_CENTER)
+    cr_cell_l = ParagraphStyle("CRL", fontName="Helvetica", fontSize=6.5,
+                               alignment=TA_LEFT)
+
+    cr_rows.append([
+        Paragraph("ETF", cr_hdr_l),
+        Paragraph("P/C RATIO", cr_hdr_c),
+        Paragraph("SIGNAL", cr_hdr_c),
+        Paragraph("1W CHG", cr_hdr_c),
+        Paragraph("1M CHG", cr_hdr_c),
+    ])
+
+    for etf_key in ["HYG", "LQD"]:
+        etf_data = credit.get(etf_key, credit.get(etf_key.lower(), {}))
+        if etf_data:
+            sig = etf_data.get("signal", "neutral")
+            sig_col = "#1A5276" if sig == "bullish" else ("#7B241C" if sig == "bearish" else "#4A5568")
+            cr_rows.append([
+                Paragraph(f"<b>{etf_key}</b>", cr_cell_l),
+                Paragraph(f'{etf_data.get("put_call_ratio", 0):.2f}', cr_cell_c),
+                Paragraph(f'<font color="{sig_col}"><b>{xe(sig.upper())}</b></font>', cr_cell_c),
+                Paragraph(f'{etf_data.get("1w_change", etf_data.get("change_1w", 0)):+.2f}', cr_cell_c),
+                Paragraph(f'{etf_data.get("1m_change", etf_data.get("change_1m", 0)):+.2f}', cr_cell_c),
+            ])
+
+    if len(cr_rows) > 1:
+        cr_cw = [60, 80, 80, 80, 80]
+        cr_tbl = Table(cr_rows, colWidths=cr_cw)
+        cr_tbl.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, 0), GS_NAVY),
+            ("BACKGROUND",    (0, 1), (-1, 1), GS_LGRAY),
+            ("BACKGROUND",    (0, 2), (-1, 2), white),
+            ("TOPPADDING",    (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 3),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 3),
+            ("LINEBELOW",     (0, 0), (-1, -1), 0.3, GS_LINE),
+            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ]))
+        cr_story = [cr_tbl]
+    else:
+        cr_story = [Paragraph("Credit signal data unavailable.", cr_cell_l)]
+
+    # Overall risk signal
+    risk_sig = credit.get("risk_signal", "neutral")
+    risk_col = "#1A5276" if risk_sig in ("low_risk", "bullish") else (
+        "#7B241C" if risk_sig in ("high_risk", "bearish") else "#4A5568")
+    cr_story.append(Spacer(1, 3))
+    cr_story.append(Paragraph(
+        f'Overall Credit Risk Signal: <font color="{risk_col}"><b>{xe(risk_sig.upper())}</b></font>',
+        ParagraphStyle("CRisk", fontName="Helvetica-Bold", fontSize=7, textColor=GS_TEXT)))
+
+    cr_h = 56
+    cr_frame = Frame(36, y_cursor - cr_h, FULL_W, cr_h,
+                     leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0,
+                     showBoundary=0)
+    cr_frame.addFromList(cr_story, c)
+    y_cursor -= cr_h + 6
+
+    # ── Section 5: Short Interest & Squeeze Candidates ────────────────────────
+    c.setFillColor(GS_NAVY)
+    c.rect(36, y_cursor - 14, FULL_W, 14, fill=1, stroke=0)
+    c.setFont("Helvetica-Bold", 7)
+    c.setFillColor(white)
+    c.drawString(41, y_cursor - 10, "SHORT INTEREST & SQUEEZE CANDIDATES")
+    y_cursor -= 18
+
+    squeeze = market_intel.get("short_interest", {}).get("squeeze_candidates", [])
+    sq_hdr_c = ParagraphStyle("SQHC", fontName="Helvetica-Bold", fontSize=6.5,
+                              textColor=white, alignment=TA_CENTER)
+    sq_hdr_l = ParagraphStyle("SQHL", fontName="Helvetica-Bold", fontSize=6.5,
+                              textColor=white, alignment=TA_LEFT)
+    sq_cell_c = ParagraphStyle("SQC", fontName="Helvetica", fontSize=6.5,
+                               alignment=TA_CENTER)
+    sq_cell_l = ParagraphStyle("SQL", fontName="Helvetica", fontSize=6.5,
+                               alignment=TA_LEFT)
+
+    sq_rows = [[
+        Paragraph("TICKER", sq_hdr_l),
+        Paragraph("SHORT%", sq_hdr_c),
+        Paragraph("CHANGE", sq_hdr_c),
+        Paragraph("OPTIONS SIGNAL", sq_hdr_c),
+    ]]
+    for s in squeeze:
+        sig = s.get("options_signal", "neutral")
+        sig_col = "#1A5276" if sig == "bullish" else ("#7B241C" if sig == "bearish" else "#4A5568")
+        sq_rows.append([
+            Paragraph(f'<b>{xe(str(s.get("ticker", "")))}</b>', sq_cell_l),
+            Paragraph(f'{s.get("short_pct", 0):.1f}%', sq_cell_c),
+            Paragraph(f'{s.get("change_pct", 0):+.1f}%', sq_cell_c),
+            Paragraph(f'<font color="{sig_col}"><b>{xe(sig.upper())}</b></font>', sq_cell_c),
+        ])
+
+    if len(sq_rows) > 1:
+        sq_cw = [80, 80, 80, 120]
+        sq_tbl = Table(sq_rows, colWidths=sq_cw)
+        sq_style_cmds = [
+            ("BACKGROUND",    (0, 0), (-1, 0), GS_NAVY),
+            ("TOPPADDING",    (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 3),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 3),
+            ("LINEBELOW",     (0, 0), (-1, -1), 0.3, GS_LINE),
+            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ]
+        for i in range(1, len(sq_rows)):
+            sq_style_cmds.append(("BACKGROUND", (0, i), (-1, i),
+                                  GS_LGRAY if i % 2 == 0 else white))
+        sq_tbl.setStyle(TableStyle(sq_style_cmds))
+        sq_story = [sq_tbl]
+    else:
+        sq_story = [Paragraph("No squeeze candidates identified.", sq_cell_c)]
+
+    sq_h = max(30, min(14 * len(sq_rows) + 4, y_cursor - FTR_DIV_Y - 10))
+    sq_frame = Frame(36, y_cursor - sq_h, FULL_W, sq_h,
+                     leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0,
+                     showBoundary=0)
+    sq_frame.addFromList(sq_story, c)
+
+    # ── Footer ────────────────────────────────────────────────────────────────
+    draw_footer(c, "Market-Wide Intelligence")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  CANVAS DRAWING — MARKET-WIDE INTELLIGENCE (PAGE 2)
+# ════════════════════════════════════════════════════════════════════════════
+
+def draw_market_intelligence_page2(c, market_intel: dict):
+    """Draw Market-Wide Intelligence page 2: earnings, congress, macro, dark pool."""
+    st = _styles()
+    date_str = datetime.now(timezone.utc).strftime("%B %d, %Y")
+
+    # ── Header band ───────────────────────────────────────────────────────────
+    c.setFillColor(GS_NAVY)
+    c.rect(0, 740, PW, 52, fill=1, stroke=0)
+    c.setFont("Helvetica-Bold", 14)
+    c.setFillColor(white)
+    c.drawString(36, 770, "MARKET-WIDE OPTIONS INTELLIGENCE")
+    c.setFont("Helvetica", 8)
+    c.setFillColor(HexColor("#A8C8F0"))
+    c.drawString(36, 757, "EARNINGS  |  CONGRESSIONAL TRADES  |  MACRO EVENTS  |  DARK POOL")
+    c.setFont("Helvetica-Bold", 9)
+    c.setFillColor(white)
+    c.drawRightString(576, 770, FIRM_NAME_U)
+    c.setFont("Helvetica", 7.5)
+    c.setFillColor(HexColor("#A8C8F0"))
+    c.drawRightString(576, 757, date_str)
+
+    # Gold accent line
+    c.setStrokeColor(GOLD_COL)
+    c.setLineWidth(2.0)
+    c.line(0, 740, PW, 740)
+
+    y_cursor = 730
+
+    # ── Section 1: Earnings Calendar ──────────────────────────────────────────
+    c.setFillColor(GS_NAVY)
+    c.rect(36, y_cursor - 14, FULL_W, 14, fill=1, stroke=0)
+    c.setFont("Helvetica-Bold", 7)
+    c.setFillColor(white)
+    c.drawString(41, y_cursor - 10, "EARNINGS CALENDAR  —  OPTIONS IMPLIED MOVES")
+    y_cursor -= 18
+
+    earnings = market_intel.get("earnings_calendar", [])
+    e_hdr_c = ParagraphStyle("EHC", fontName="Helvetica-Bold", fontSize=6.5,
+                             textColor=white, alignment=TA_CENTER)
+    e_hdr_l = ParagraphStyle("EHL", fontName="Helvetica-Bold", fontSize=6.5,
+                             textColor=white, alignment=TA_LEFT)
+    e_cell_c = ParagraphStyle("EC", fontName="Helvetica", fontSize=6.5,
+                              alignment=TA_CENTER)
+    e_cell_l = ParagraphStyle("EL", fontName="Helvetica", fontSize=6.5,
+                              alignment=TA_LEFT)
+
+    e_rows = [[
+        Paragraph("TICKER", e_hdr_l),
+        Paragraph("DATE", e_hdr_c),
+        Paragraph("IMPLIED MOVE%", e_hdr_c),
+        Paragraph("HIST AVG%", e_hdr_c),
+        Paragraph("RICH/CHEAP", e_hdr_c),
+    ]]
+    for e in earnings:
+        rc = e.get("rich_cheap", "")
+        rc_col = "#7B241C" if rc.lower() == "rich" else (
+            "#1A5276" if rc.lower() == "cheap" else "#4A5568")
+        e_rows.append([
+            Paragraph(f'<b>{xe(str(e.get("ticker", "")))}</b>', e_cell_l),
+            Paragraph(xe(str(e.get("earnings_date", e.get("date", "")))), e_cell_c),
+            Paragraph(f'{e.get("implied_move_pct", 0):.1f}%', e_cell_c),
+            Paragraph(f'{e.get("hist_avg_move_pct", e.get("hist_avg_pct", 0)):.1f}%', e_cell_c),
+            Paragraph(f'<font color="{rc_col}"><b>{xe(rc.upper() if rc else "—")}</b></font>', e_cell_c),
+        ])
+
+    if len(e_rows) > 1:
+        e_cw = [70, 90, 100, 100, 90]
+        e_tbl = Table(e_rows, colWidths=e_cw)
+        e_style_cmds = [
+            ("BACKGROUND",    (0, 0), (-1, 0), GS_NAVY),
+            ("TOPPADDING",    (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 3),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 3),
+            ("LINEBELOW",     (0, 0), (-1, -1), 0.3, GS_LINE),
+            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ]
+        for i in range(1, len(e_rows)):
+            e_style_cmds.append(("BACKGROUND", (0, i), (-1, i),
+                                 GS_LGRAY if i % 2 == 0 else white))
+        e_tbl.setStyle(TableStyle(e_style_cmds))
+        e_story = [e_tbl]
+    else:
+        e_story = [Paragraph("No upcoming earnings in calendar.", e_cell_c)]
+
+    e_h = min(14 * len(e_rows) + 4, 140)
+    e_frame = Frame(36, y_cursor - e_h, FULL_W, e_h,
+                    leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0,
+                    showBoundary=0)
+    e_frame.addFromList(e_story, c)
+    y_cursor -= e_h + 6
+
+    # ── Section 2: Congressional Trades ───────────────────────────────────────
+    c.setFillColor(GS_NAVY)
+    c.rect(36, y_cursor - 14, FULL_W, 14, fill=1, stroke=0)
+    c.setFont("Helvetica-Bold", 7)
+    c.setFillColor(white)
+    c.drawString(41, y_cursor - 10, "CONGRESSIONAL TRADES  —  RECENT DISCLOSURES")
+    y_cursor -= 18
+
+    congress = market_intel.get("congressional_trades", [])
+    ct_hdr_c = ParagraphStyle("CTHC", fontName="Helvetica-Bold", fontSize=6,
+                              textColor=white, alignment=TA_CENTER)
+    ct_hdr_l = ParagraphStyle("CTHL", fontName="Helvetica-Bold", fontSize=6,
+                              textColor=white, alignment=TA_LEFT)
+    ct_cell_c = ParagraphStyle("CTC", fontName="Helvetica", fontSize=6,
+                               alignment=TA_CENTER)
+    ct_cell_l = ParagraphStyle("CTL", fontName="Helvetica", fontSize=6,
+                               alignment=TA_LEFT)
+
+    ct_rows = [[
+        Paragraph("MEMBER", ct_hdr_l),
+        Paragraph("CHAMBER", ct_hdr_c),
+        Paragraph("TICKER", ct_hdr_c),
+        Paragraph("TYPE", ct_hdr_c),
+        Paragraph("AMOUNT", ct_hdr_c),
+        Paragraph("DATE", ct_hdr_c),
+        Paragraph("SECTOR", ct_hdr_l),
+    ]]
+    for t in congress:
+        tx_type = t.get("type", "")
+        tx_col = "#1A5276" if tx_type.lower() == "purchase" else (
+            "#7B241C" if tx_type.lower() == "sale" else "#4A5568")
+        ct_rows.append([
+            Paragraph(xe(str(t.get("member", ""))[:20]), ct_cell_l),
+            Paragraph(xe(str(t.get("chamber", ""))), ct_cell_c),
+            Paragraph(f'<b>{xe(str(t.get("ticker", "")))}</b>', ct_cell_c),
+            Paragraph(f'<font color="{tx_col}"><b>{xe(tx_type.upper())}</b></font>', ct_cell_c),
+            Paragraph(xe(str(t.get("amount", ""))), ct_cell_c),
+            Paragraph(xe(str(t.get("date", ""))), ct_cell_c),
+            Paragraph(xe(str(t.get("sector", ""))[:16]), ct_cell_l),
+        ])
+
+    if len(ct_rows) > 1:
+        ct_cw = [90, 52, 50, 50, 72, 64, 74]
+        ct_tbl = Table(ct_rows, colWidths=ct_cw)
+        ct_style_cmds = [
+            ("BACKGROUND",    (0, 0), (-1, 0), GS_NAVY),
+            ("TOPPADDING",    (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 2),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 2),
+            ("LINEBELOW",     (0, 0), (-1, -1), 0.3, GS_LINE),
+            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ]
+        for i in range(1, len(ct_rows)):
+            ct_style_cmds.append(("BACKGROUND", (0, i), (-1, i),
+                                  GS_LGRAY if i % 2 == 0 else white))
+        ct_tbl.setStyle(TableStyle(ct_style_cmds))
+        ct_story = [ct_tbl]
+    else:
+        ct_story = [Paragraph("No recent congressional trades reported.", ct_cell_c)]
+
+    ct_h = min(14 * len(ct_rows) + 4, 160)
+    ct_frame = Frame(36, y_cursor - ct_h, FULL_W, ct_h,
+                     leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0,
+                     showBoundary=0)
+    ct_frame.addFromList(ct_story, c)
+    y_cursor -= ct_h + 6
+
+    # ── Section 3: Macro Events ───────────────────────────────────────────────
+    c.setFillColor(GS_NAVY)
+    c.rect(36, y_cursor - 14, FULL_W, 14, fill=1, stroke=0)
+    c.setFont("Helvetica-Bold", 7)
+    c.setFillColor(white)
+    c.drawString(41, y_cursor - 10, "MACRO EVENTS  —  UPCOMING CALENDAR")
+    y_cursor -= 18
+
+    macro_events = market_intel.get("macro_events", {})
+    events = macro_events.get("events", [])
+    me_story = []
+    me_style = ParagraphStyle("ME", fontName="Helvetica", fontSize=7, leading=10,
+                              textColor=GS_TEXT, leftIndent=8, firstLineIndent=-6,
+                              spaceAfter=1)
+
+    IMP_COLORS = {"high": "#7B241C", "medium": "#C9A84C", "low": "#4A5568"}
+    for ev in events:
+        dt = ev.get("date", "")
+        name = ev.get("event", ev.get("name", ""))
+        imp = ev.get("importance", "medium")
+        imp_col = IMP_COLORS.get(imp.lower(), "#4A5568")
+        line = (f'<b>{xe(str(dt))}</b>  {xe(str(name))}  '
+                f'<font color="{imp_col}"><b>[{xe(imp.upper())}]</b></font>')
+        me_story.append(Paragraph(f"• {line}", me_style))
+
+    rate_sens = macro_events.get("rate_sensitivity", "")
+    if rate_sens:
+        me_story.append(Spacer(1, 3))
+        me_story.append(Paragraph(
+            f'<i>Rate Sensitivity: {xe(str(rate_sens))}</i>',
+            ParagraphStyle("RS", fontName="Helvetica", fontSize=6.5, leading=9,
+                           textColor=GS_DGRAY)))
+    if not me_story:
+        me_story.append(Paragraph("• No macro events scheduled.", me_style))
+
+    me_h = min(len(events) * 12 + 20, max(40, y_cursor - FTR_DIV_Y - 100))
+    me_frame = Frame(36, y_cursor - me_h, FULL_W, me_h,
+                     leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0,
+                     showBoundary=0)
+    me_frame.addFromList(me_story, c)
+    y_cursor -= me_h + 6
+
+    # ── Section 4: Dark Pool Signals ──────────────────────────────────────────
+    c.setFillColor(GS_NAVY)
+    c.rect(36, y_cursor - 14, FULL_W, 14, fill=1, stroke=0)
+    c.setFont("Helvetica-Bold", 7)
+    c.setFillColor(white)
+    c.drawString(41, y_cursor - 10, "DARK POOL SIGNALS  —  FLAGGED ACTIVITY")
+    y_cursor -= 18
+
+    dark_pool = market_intel.get("dark_pool", {})
+    flagged = dark_pool.get("flagged", [])
+
+    dp_hdr_c = ParagraphStyle("DPHC", fontName="Helvetica-Bold", fontSize=6.5,
+                              textColor=white, alignment=TA_CENTER)
+    dp_hdr_l = ParagraphStyle("DPHL", fontName="Helvetica-Bold", fontSize=6.5,
+                              textColor=white, alignment=TA_LEFT)
+    dp_cell_c = ParagraphStyle("DPC", fontName="Helvetica", fontSize=6.5,
+                               alignment=TA_CENTER)
+    dp_cell_l = ParagraphStyle("DPL", fontName="Helvetica", fontSize=6.5,
+                               alignment=TA_LEFT)
+
+    dp_rows = [[
+        Paragraph("TICKER", dp_hdr_l),
+        Paragraph("SECTOR", dp_hdr_l),
+        Paragraph("VOL SPIKE", dp_hdr_c),
+        Paragraph("PRICE MOVE", dp_hdr_c),
+        Paragraph("BIAS", dp_hdr_c),
+    ]]
+    for f in flagged:
+        bias = f.get("bias", "neutral")
+        bias_col = "#1A5276" if bias == "bullish" else (
+            "#7B241C" if bias == "bearish" else "#4A5568")
+        dp_rows.append([
+            Paragraph(f'<b>{xe(str(f.get("ticker", "")))}</b>', dp_cell_l),
+            Paragraph(xe(str(f.get("sector", ""))), dp_cell_l),
+            Paragraph(f'{f.get("volume_spike", f.get("vol_spike", 0)):.1f}x', dp_cell_c),
+            Paragraph(f'{f.get("price_move", 0):+.1f}%', dp_cell_c),
+            Paragraph(f'<font color="{bias_col}"><b>{xe(bias.upper())}</b></font>', dp_cell_c),
+        ])
+
+    if len(dp_rows) > 1:
+        dp_cw = [70, 100, 90, 90, 90]
+        dp_tbl = Table(dp_rows, colWidths=dp_cw)
+        dp_style_cmds = [
+            ("BACKGROUND",    (0, 0), (-1, 0), GS_NAVY),
+            ("TOPPADDING",    (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 3),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 3),
+            ("LINEBELOW",     (0, 0), (-1, -1), 0.3, GS_LINE),
+            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ]
+        for i in range(1, len(dp_rows)):
+            dp_style_cmds.append(("BACKGROUND", (0, i), (-1, i),
+                                  GS_LGRAY if i % 2 == 0 else white))
+        dp_tbl.setStyle(TableStyle(dp_style_cmds))
+        dp_story = [dp_tbl]
+    else:
+        dp_story = [Paragraph("No dark pool flags detected.", dp_cell_c)]
+
+    dp_h = max(30, min(14 * len(dp_rows) + 4, y_cursor - FTR_DIV_Y - 10))
+    dp_frame = Frame(36, y_cursor - dp_h, FULL_W, dp_h,
+                     leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0,
+                     showBoundary=0)
+    dp_frame.addFromList(dp_story, c)
+
+    # ── Footer ────────────────────────────────────────────────────────────────
+    draw_footer(c, "Market-Wide Intelligence — Page 2")
+
+
+# ════════════════════════════════════════════════════════════════════════════
 #  CANVAS DRAWING — FRONT PAGE
 # ════════════════════════════════════════════════════════════════════════════
 
@@ -1835,6 +2410,7 @@ def build_combined_pdf(
     macro_data: dict,
     macro_text: str,
     prospects: list[dict] | None = None,
+    market_intel: dict | None = None,
 ) -> Path:
     """Build the combined multi-page PDF with front page + per-ticker pages."""
     REPORTS_DIR.mkdir(exist_ok=True)
@@ -1851,6 +2427,13 @@ def build_combined_pdf(
     # ── Page 1: Front Page ────────────────────────────────────────────────────
     if len(all_ticker_data) > 1:
         draw_front_page(c, all_ticker_data, macro_data, macro_text)
+        c.showPage()
+
+    # ── Market-Wide Intelligence Pages ────────────────────────────────────────
+    if market_intel:
+        draw_market_intelligence_page(c, market_intel)
+        c.showPage()
+        draw_market_intelligence_page2(c, market_intel)
         c.showPage()
 
     # ── Per-Ticker Pages ──────────────────────────────────────────────────────
@@ -2359,10 +2942,42 @@ def git_push_reports(pdf_paths: list[Path], extra_files: list[Path] | None = Non
     return True
 
 
+def _build_market_pulse(market_intel: dict | None) -> dict:
+    """Build a slim market_pulse dict for the dashboard JSON."""
+    if not market_intel:
+        return {}
+    sf = market_intel.get("sector_flow", {})
+    sectors = sf.get("sectors", [])
+    return {
+        "sector_flow": [
+            {"sector": s["sector"], "etf": s["etf"], "pc_ratio": s["put_call_ratio"],
+             "signal": s["signal"], "unusual": s.get("unusual_volume", False)}
+            for s in sectors
+        ],
+        "squeeze_candidates": [
+            {"ticker": s["ticker"], "short_pct": s["short_pct"], "change_pct": s["change_pct"]}
+            for s in market_intel.get("short_interest", {}).get("squeeze_candidates", [])
+        ],
+        "congressional_trades": [
+            {"member": t["member"], "ticker": t["ticker"], "type": t["type"],
+             "amount": t["amount"], "date": t["date"], "chamber": t["chamber"]}
+            for t in market_intel.get("congressional_trades", [])[:10]
+        ],
+        "earnings_calendar": [
+            {"ticker": e["ticker"], "date": e["earnings_date"],
+             "implied_move": e.get("implied_move_pct"), "rich_cheap": e.get("rich_cheap")}
+            for e in market_intel.get("earnings_calendar", [])
+        ],
+        "credit_risk": market_intel.get("credit_signals", {}).get("risk_signal", "neutral"),
+        "rotation_analysis": market_intel.get("rotation_analysis", ""),
+    }
+
+
 def write_dashboard_json(
     all_ticker_data: list[dict],
     macro_data: dict,
     prospects: list[dict] | None = None,
+    market_intel: dict | None = None,
 ) -> Path:
     """Write docs/dashboard_data.json for the GitHub Pages dashboard."""
     import glob as _glob
@@ -2444,6 +3059,7 @@ def write_dashboard_json(
         "macro_rates": macro_rates,
         "tickers":    tickers_json,
         "prospects":  prospects_json,
+        "market_pulse": _build_market_pulse(market_intel),
     }
 
     out_path = DOCS_DIR / "dashboard_data.json"
@@ -2481,6 +3097,14 @@ def main():
     macro_data = get_macro_data()
     macro_text = generate_macro_analysis(macro_data, client)
     log.info("  Macro analysis complete.")
+
+    # ── 1b. Market-wide intelligence (independent of individual tickers) ──
+    log.info("─── MARKET-WIDE INTELLIGENCE ───")
+    try:
+        market_intel = collect_market_intelligence(watch_list, macro_data, client)
+    except Exception as exc:
+        log.warning("Market intelligence collection failed (non-fatal): %s", exc)
+        market_intel = {}
 
     # ── 2. Per-ticker data collection + analysis ──────────────────────────────
     all_ticker_data: list[dict] = []
@@ -2588,7 +3212,8 @@ def main():
         log.info("─── Building combined PDF ───")
         try:
             combined = build_combined_pdf(all_ticker_data, macro_data, macro_text,
-                                          prospects=prospects)
+                                          prospects=prospects,
+                                          market_intel=market_intel)
             pdf_list.append(combined)
         except Exception as exc:
             log.error("Combined PDF build FAILED: %s", exc, exc_info=True)
@@ -2609,7 +3234,8 @@ def main():
     # ── 4. Dashboard JSON ──────────────────────────────────────────────────────
     log.info("─── Updating GitHub Pages dashboard ───")
     try:
-        dash_path = write_dashboard_json(all_ticker_data, macro_data, prospects=prospects)
+        dash_path = write_dashboard_json(all_ticker_data, macro_data, prospects=prospects,
+                                         market_intel=market_intel)
     except Exception as exc:
         log.error("Dashboard JSON failed (non-fatal): %s", exc, exc_info=True)
         dash_path = None
