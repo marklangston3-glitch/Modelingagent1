@@ -297,18 +297,18 @@ def generate_rotation_analysis(
             for s in squeeze_candidates[:5]
         )
 
-    prompt = f"""You are a senior macro strategist. Analyze the sector options flow data below and write a concise paragraph (4-6 sentences) on what smart money options positioning implies about sector rotation over the next 30-60 days.
+    prompt = f"""You are a smart friend who works on Wall Street explaining sector rotation to someone who invests but isn't a finance professional. Analyze the options flow data below and write 4-6 sentences on where it looks like big money is moving and why.
 
 SECTOR OPTIONS FLOW (ranked most bullish to most bearish):
 {flow_lines}
 {credit_line}
 {squeeze_line}
 
-Cover:
-1. Which sectors are being positioned for (heavy call buying, low P/C)
-2. Which sectors are being hedged or exited (heavy put buying, high P/C)
-3. What this implies about the market outlook
-4. Any notable divergences between equity and options positioning
+Write in plain English. Instead of "put/call skew expanded" say "the options market is betting big on..." Instead of "multiple compression" say "stocks could get cheaper if growth slows." Explain:
+1. Which sectors big money seems to be loading up on, and a guess at why
+2. Which sectors are being quietly exited or hedged against
+3. What this pattern usually means for the next month or two
+4. Any interesting contradictions between what stocks are doing and what options are saying
 
 Output ONLY the paragraph — no headers, bullets, or extra formatting."""
 

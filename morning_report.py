@@ -424,8 +424,7 @@ def generate_analysis(
         for v in sorted(sectors.values(), key=lambda x: x["chg_1d"], reverse=True)[:6]
     ) or "  No sector data."
 
-    prompt = f"""You are a senior equity research analyst at {FIRM_NAME} writing a pre-market Company Update note.
-Institutional quality: precise, data-referenced, concise. Today: {date_str}.
+    prompt = f"""You are a smart friend who works on Wall Street writing a quick morning update on {ticker}. Write like you're texting someone who invests but isn't a finance professional. Be clear, direct, use plain English. When you use a financial term, explain what it means in the same breath (e.g., "trading at 15x earnings — meaning investors are paying $15 for every $1 the company earns"). Today: {date_str}.
 
 TICKER: {ticker}  |  COMPANY: {company}  |  EXCHANGE: {exch}
 Price: ${price:.2f} ({chg:+.2f}%)  |  Mkt Cap: {cap}  |  52-Wk: ${lo52}–${hi52}  ({pct_rng:.0f}% of range)
@@ -451,7 +450,7 @@ OUTPUT EXACTLY this format — no extra text outside these markers:
 {{
   "rating": "Buy",
   "price_target": 65.00,
-  "headline": "{ticker}: [Concise event-driven headline 10 words max; include 'Reiterate Buy/Neutral/Sell' if no major news]",
+  "headline": "{ticker}: [Conversational headline, 10 words max — e.g., '{ticker}: Looking Strong After Big Customer Win']",
   "growth_score": 8,
   "returns_score": 4,
   "multiple_score": 7,
@@ -465,7 +464,7 @@ OUTPUT EXACTLY this format — no extra text outside these markers:
   "pe_fwd": null,
   "ev_ebitda_fwd": null,
   "conviction_score": 7,
-  "one_line_thesis": "10-15 word thesis summarizing the core investment case",
+  "one_line_thesis": "Plain-English thesis — e.g., 'This AI healthcare company is landing hospitals fast and the stock hasn't caught up yet'",
   "price_targets": {{
     "1mo":  {{"bull": 55.00, "base": 48.00, "bear": 40.00}},
     "6mo":  {{"bull": 72.00, "base": 58.00, "bear": 38.00}},
@@ -483,56 +482,56 @@ OUTPUT EXACTLY this format — no extra text outside these markers:
 ===JSON_END===
 
 ===WHAT_CHANGED===
-• [Specific bullet on overnight filing, price move, or news catalyst — be data-specific]
+• [What happened overnight in plain English — "The stock jumped 4% after announcing a deal with..." not "Shares appreciated on strategic partnership disclosure"]
 • [Second bullet if applicable; omit if only one item]
 ===END_WHAT_CHANGED===
 
 ===IMPLICATIONS===
-[REQUIRED — 2–3 sentences. NEVER write "No implications to report" or any placeholder. Even when there are no new SEC filings, synthesize from the overnight news, recent price action, and sector context above to explain what the current market environment means for {ticker}'s investment thesis. Be specific to {ticker}'s business model and near-term drivers.]
+[REQUIRED — 2–3 sentences in plain English. Explain what the latest news/price action actually means for someone holding or considering this stock. Connect the dots: "This matters because..." NEVER write placeholder text. Even when there are no new SEC filings, tell the reader what the current market environment means for {ticker}. Example: "The broader tech rally is lifting all boats, and {ticker} is riding that wave. But the real question is whether next quarter's revenue can back up this price."]
 ===END_IMPLICATIONS===
 
 ===VALUATION===
-[2–3 sentences. Current valuation methodology; reference P/S, EV/Revenue, or EV/EBITDA as appropriate for {ticker}'s stage. State upside/downside to your PT. Note key multiple expansion or contraction driver.]
+[2–3 sentences. Explain in plain English whether the stock is expensive or cheap and why. Instead of "EV/Revenue of 12x" say "investors are paying $12 for every $1 of revenue — that's pricey compared to peers at $8." State how much upside or downside you see from here.]
 ===END_VALUATION===
 
 ===KEY_RISKS===
-• [Specific risk 1]
-• [Specific risk 2]
-• [Specific risk 3]
+• [Plain-English risk — e.g., "They're burning cash fast and might need to raise money, which dilutes your shares"]
+• [Another risk in conversational language]
+• [Third risk — keep it real and specific to this company]
 ===END_KEY_RISKS===
 
 ===PRICE_OUTLOOK_THESIS===
-[2–3 sentences: what must go right for the bull case, what is the base case narrative, what catalyst triggers the bear case.]
+[2–3 sentences explaining what needs to go right/wrong. E.g., "If they land two more big customers, this stock could run to $65. More likely scenario: steady growth gets us to $50. The risk? If revenue growth stalls, the premium valuation evaporates fast."]
 ===END_PRICE_OUTLOOK_THESIS===
 
 ===SECTOR_INTELLIGENCE===
-HOT SECTORS: [sector], [sector]
-COLD SECTORS: [sector], [sector]
-ROTATION WATCH: [1–2 sentences on likely near-term sector rotation based on macro tailwinds]
-BYPRODUCT PLAY: [1–2 sentences on secondary opportunities created by trends benefiting {ticker}'s space]
+HEATING UP: [sectors where money is flowing in — name them conversationally]
+COOLING OFF: [sectors losing momentum]
+ROTATION WATCH: [1–2 sentences on where money is moving and why, in plain English — "Money is rotating out of safe dividend stocks into tech because..."]
+RELATED PLAY: [1–2 sentences on secondary opportunities — "If {ticker}'s sector keeps running, companies that supply them also benefit..."]
 ===END_SECTOR_INTELLIGENCE===
 
 ===OUTPERFORMERS===
-• [TICKER] ([Company name]): [specific metric/reason showing this company is outpacing its sector]
-• [TICKER] ([Company name]): [specific metric/reason]
-{ticker} CONTEXT: [Is {ticker} pulling away from its peer group or lagging? What does relative performance say?]
+• [TICKER] ([Company name]): [plain-English reason — "up 30% this quarter because they crushed earnings estimates"]
+• [TICKER] ([Company name]): [plain-English reason]
+{ticker} CONTEXT: [Is {ticker} leading or lagging its peers? Say it straight.]
 ===END_OUTPERFORMERS===
 
 ===INVESTMENT_STRATEGY===
-CONVICTION: {{}}/10 — [one-sentence rationale grounded in the data above]
-POSITION SIZE: [suggested % of portfolio and why this sizing fits the risk profile]
-ENTRY POINTS: [specific price levels or technical/fundamental conditions for entry]
-TIME HORIZON: [specific timeframe and the key catalyst expected within that window]
-THESIS INVALIDATION: [specific, measurable data points that would trigger an exit]
-HEDGING: [specific hedge instrument, pair trade, or options strategy]
+CONVICTION: {{}}/10 — [one sentence explaining your confidence level in plain English]
+POSITION SIZE: [how much of your portfolio — and explain why this sizing makes sense for the risk]
+ENTRY POINTS: [where to buy — "I'd look to buy around $45-50 if it pulls back"]
+TIME HORIZON: [how long to hold and what you're waiting for]
+WHEN TO BAIL: [specific things that would make you sell — keep it concrete]
+HEDGING: [how to protect yourself — explain the strategy in plain English]
 ===END_INVESTMENT_STRATEGY===
 
 SCORING GUIDE for Investment Profile (1–10):
-  growth_score: revenue CAGR trajectory (10 = hypergrowth >100%/yr)
-  returns_score: current FCF/EBITDA margins (10 = highly profitable; 1 = deeply negative)
-  multiple_score: valuation richness (10 = extremely expensive vs peers; 1 = deep value)
-  volatility_score: stock price volatility / binary outcome risk (10 = extreme)
-  conviction_score: overall analyst conviction 1–10 (10 = highest conviction Buy)"""
+  growth_score: how fast is revenue growing (10 = crazy fast, doubling+ yearly)
+  returns_score: is the company actually making money (10 = very profitable; 1 = losing tons of money)
+  multiple_score: how expensive is the stock (10 = very expensive vs peers; 1 = bargain)
+  volatility_score: how much does the stock bounce around (10 = wild swings, binary outcome)
+  conviction_score: how confident are you overall (10 = highest conviction)"""
 
     log.info("  Calling Claude (%s) for %s …", MODEL, ticker)
     try:
@@ -574,8 +573,8 @@ SCORING GUIDE for Investment Profile (1–10):
     return parsed
 
 
-def generate_macro_analysis(macro_data: dict, client: anthropic.Anthropic) -> str:
-    """Single Claude call to generate a macro intelligence briefing."""
+def generate_macro_analysis(macro_data: dict, client: anthropic.Anthropic) -> dict:
+    """Single Claude call to generate a macro intelligence briefing with market mood."""
     sectors = macro_data.get("sectors", {})
     rates   = macro_data.get("rates", {})
     date_str = datetime.now(timezone.utc).strftime("%B %d, %Y")
@@ -590,8 +589,7 @@ def generate_macro_analysis(macro_data: dict, client: anthropic.Anthropic) -> st
         for k, v in rates.items()
     ) or "  No rate data available."
 
-    prompt = f"""You are the Chief Macro Strategist at {FIRM_NAME}.
-Today: {date_str}. Write a concise institutional macro briefing for AI/tech equity investors.
+    prompt = f"""You are a smart friend who works on Wall Street giving a quick morning market update. Today: {date_str}. Write like you're texting someone who invests but isn't a finance professional — clear, direct, no jargon unless you explain it in the same breath.
 
 RATE ENVIRONMENT:
 {rate_lines}
@@ -601,12 +599,16 @@ SECTOR ETF PERFORMANCE (1D | 5D | 1M):
 
 OUTPUT EXACTLY this format — no extra text outside markers:
 
+===MARKET_MOOD===
+[One punchy sentence summarizing the overall market vibe right now. Examples: "Markets are nervous today — everyone's watching the Fed." or "Risk-on morning — money is flowing into tech and growth names." Keep it under 20 words.]
+===END_MARKET_MOOD===
+
 ===MACRO_ANALYSIS===
-• [Key rate/Fed observation — specific data point and implication]
-• [Strongest sector trend and what is driving it]
-• [Weakest sector / sector under pressure and why]
-• [Risk flag or opportunity for AI/technology companies specifically]
-• [One actionable macro conclusion for portfolio positioning today]
+• [What rates/bonds are telling us right now — translate the numbers into plain English. Instead of "10Y yield rose 5bps" say "borrowing costs are creeping up, which usually puts pressure on growth stocks"]
+• [Which sectors are hot and why — translate ETF moves into "money is flowing into X because..."]
+• [Which sectors are struggling and what's behind it — make it intuitive]
+• [What this means specifically for tech/AI stocks on our watchlist — connect the dots]
+• [The one thing to actually do with your portfolio today — be specific and practical]
 ===END_MACRO_ANALYSIS==="""
 
     log.info("  Calling Claude for macro analysis …")
@@ -616,14 +618,20 @@ OUTPUT EXACTLY this format — no extra text outside markers:
             messages=[{"role": "user", "content": prompt}],
         )
         raw = msg.content[0].text
+        mood_s = raw.find("===MARKET_MOOD===")
+        mood_e = raw.find("===END_MARKET_MOOD===")
+        mood = ""
+        if mood_s != -1 and mood_e != -1:
+            mood = raw[mood_s + len("===MARKET_MOOD==="):mood_e].strip()
         s = raw.find("===MACRO_ANALYSIS===")
         e = raw.find("===END_MACRO_ANALYSIS===")
+        analysis = raw.strip()
         if s != -1 and e != -1:
-            return raw[s + len("===MACRO_ANALYSIS==="):e].strip()
-        return raw.strip()
+            analysis = raw[s + len("===MACRO_ANALYSIS==="):e].strip()
+        return {"mood": mood, "analysis": analysis}
     except Exception as exc:
         log.warning("Macro analysis call failed: %s", exc)
-        return "• Macro data analysis unavailable."
+        return {"mood": "", "analysis": "• Macro data analysis unavailable."}
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -1995,9 +2003,9 @@ def draw_market_intelligence_page2(c, market_intel: dict):
 #  CANVAS DRAWING — EXECUTIVE BRIEF (Page 1)
 # ════════════════════════════════════════════════════════════════════════════
 
-def draw_executive_brief(c, all_ticker_data: list[dict], macro_data: dict, market_intel: dict):
+def draw_executive_brief(c, all_ticker_data: list[dict], macro_data: dict, market_intel: dict, market_mood: str = ""):
     """
-    Page 1 — Dense Bloomberg-terminal-style executive brief.
+    Page 1 — Executive brief in plain-English conversational tone.
     Each section is independently try/excepted so one failure won't crash the page.
     """
     date_str = datetime.now(timezone.utc).strftime("%B %d, %Y")
@@ -2012,7 +2020,7 @@ def draw_executive_brief(c, all_ticker_data: list[dict], macro_data: dict, marke
         c.drawString(36, 775, "LANGSTON'S FINANCIAL INTELLIGENCE")
         c.setFont("Helvetica", 7)
         c.setFillColor(HexColor("#A8C8F0"))
-        c.drawString(36, 764, "EXECUTIVE BRIEF · EQUITY RESEARCH · DAILY")
+        c.drawString(36, 764, "YOUR MORNING BRIEF · DAILY")
         c.setFont("Helvetica-Bold", 9)
         c.setFillColor(white)
         c.drawRightString(576, 775, date_str)
@@ -2023,6 +2031,14 @@ def draw_executive_brief(c, all_ticker_data: list[dict], macro_data: dict, marke
         c.setStrokeColor(GOLD_COL)
         c.setLineWidth(2.0)
         c.line(0, 762, PW, 762)
+
+        # Market mood one-liner
+        if market_mood:
+            c.setFillColor(HexColor("#FFF8E1"))
+            c.rect(0, 750, PW, 12, fill=1, stroke=0)
+            c.setFont("Helvetica-Bold", 8)
+            c.setFillColor(GS_NAVY)
+            c.drawCentredString(PW / 2, 752, market_mood[:100])
     except Exception:
         pass
 
@@ -2032,15 +2048,15 @@ def draw_executive_brief(c, all_ticker_data: list[dict], macro_data: dict, marke
         c.rect(36, 746, FULL_W, 14, fill=1, stroke=0)
         c.setFont("Helvetica-Bold", 7)
         c.setFillColor(white)
-        c.drawString(41, 750, "MACRO SNAPSHOT")
+        c.drawString(41, 750, "THE BIG PICTURE")
 
         rates = macro_data.get("rates", {}) if macro_data else {}
         indicators = [
-            ("10Y Yield", "^TNX"),
-            ("VIX",       "^VIX"),
-            ("5Y Yield",  "^FVX"),
-            ("Gold ETF",  "GLD"),
-            ("3M T-Bill",  "^IRX"),
+            ("Borrowing Cost",  "^TNX"),
+            ("Fear Index",      "^VIX"),
+            ("Mid-Term Rates",  "^FVX"),
+            ("Gold (Safety)",   "GLD"),
+            ("Cash Rate",       "^IRX"),
         ]
         box_w = 108  # 540/5
         box_y = 734
@@ -2081,7 +2097,7 @@ def draw_executive_brief(c, all_ticker_data: list[dict], macro_data: dict, marke
         c.rect(36, 718, FULL_W, 14, fill=1, stroke=0)
         c.setFont("Helvetica-Bold", 7)
         c.setFillColor(white)
-        c.drawString(41, 722, "SECTOR PULSE — OPTIONS FLOW")
+        c.drawString(41, 722, "WHERE THE SMART MONEY IS GOING")
 
         sectors = mi.get("sector_flow", {}).get("sectors", [])
         cell_w = FULL_W / max(len(sectors), 1) if sectors else 49
@@ -2092,9 +2108,9 @@ def draw_executive_brief(c, all_ticker_data: list[dict], macro_data: dict, marke
             cx = 36 + idx * cell_w
             sig = s.get("signal", "neutral")
             if sig == "bullish":
-                bg = HexColor("#EBF5FB")
+                bg = HexColor("#EBF5FB")  # Heating up
             elif sig == "bearish":
-                bg = HexColor("#FDEDEC")
+                bg = HexColor("#FDEDEC")  # Cooling off
             else:
                 bg = GS_LGRAY
             c.setFillColor(bg)
@@ -2126,7 +2142,7 @@ def draw_executive_brief(c, all_ticker_data: list[dict], macro_data: dict, marke
         c.rect(36, 684, FULL_W, 14, fill=1, stroke=0)
         c.setFont("Helvetica-Bold", 7)
         c.setFillColor(white)
-        c.drawString(41, 688, "TOP CONVICTION CALLS")
+        c.drawString(41, 688, "OUR STRONGEST PICKS RIGHT NOW")
 
         sorted_data = sorted(
             all_ticker_data,
@@ -2202,7 +2218,7 @@ def draw_executive_brief(c, all_ticker_data: list[dict], macro_data: dict, marke
         c.rect(36, alerts_top, FULL_W, 14, fill=1, stroke=0)
         c.setFont("Helvetica-Bold", 7)
         c.setFillColor(white)
-        c.drawString(41, alerts_top + 4, "MARKET-WIDE ALERTS")
+        c.drawString(41, alerts_top + 4, "WHAT CAUGHT OUR EYE TODAY")
 
         alert_items = []
         # 1. Most unusual options
@@ -2210,11 +2226,11 @@ def draw_executive_brief(c, all_ticker_data: list[dict], macro_data: dict, marke
         if unusual:
             u = unusual[0]
             alert_items.append(
-                f"⚡ {u.get('ticker', '?')} ({u.get('sector', '?')}): "
-                f"{u.get('activity', 'unusual activity detected')}"
+                f"Big options bets on {u.get('ticker', '?')} ({u.get('sector', '?')}) — "
+                f"{u.get('activity', 'someone is making a big move')}"
             )
         else:
-            alert_items.append("⚡ No unusual options activity detected")
+            alert_items.append("Options markets are quiet — nothing unusual popping up")
 
         # 2. Dark pool spike
         dark_pool = mi.get("dark_pool", {})
@@ -2222,23 +2238,25 @@ def draw_executive_brief(c, all_ticker_data: list[dict], macro_data: dict, marke
         if flagged:
             dp = flagged[0]
             vol_spike = dp.get("volume_spike", dp.get("vol_spike", 0))
+            bias = dp.get("bias", "neutral")
             alert_items.append(
-                f"⚡ {dp.get('ticker', '?')}: {vol_spike:.1f}x avg vol, "
-                f"{dp.get('bias', 'neutral')}"
+                f"{dp.get('ticker', '?')} is trading {vol_spike:.1f}x its normal volume "
+                f"behind the scenes ({bias} lean)"
             )
         else:
-            alert_items.append("⚡ No dark pool spikes detected")
+            alert_items.append("No unusual behind-the-scenes trading to flag")
 
         # 3. Congressional trade
         congress = mi.get("congressional_trades", [])
         if congress:
             ct = congress[0]
+            action = "bought" if "purchase" in str(ct.get("type", "")).lower() else "sold"
             alert_items.append(
-                f"⚡ {ct.get('member', '?')} {ct.get('type', '?')} "
-                f"{ct.get('ticker', '?')} {ct.get('amount', '?')}"
+                f"{ct.get('member', '?')} {action} "
+                f"{ct.get('ticker', '?')} ({ct.get('amount', '?')})"
             )
         else:
-            alert_items.append("⚡ No recent congressional trades reported")
+            alert_items.append("No Congress members buying or selling stocks this week")
 
         alert_h = 30
         for idx, alert_text in enumerate(alert_items[:3]):
@@ -2273,7 +2291,7 @@ def draw_executive_brief(c, all_ticker_data: list[dict], macro_data: dict, marke
         c.rect(px, strip_top, panel_w, 14, fill=1, stroke=0)
         c.setFont("Helvetica-Bold", 6.5)
         c.setFillColor(white)
-        c.drawString(px + 4, strip_top + 4, "EARNINGS TO WATCH")
+        c.drawString(px + 4, strip_top + 4, "EARNINGS COMING UP")
 
         earnings = mi.get("earnings_calendar", [])
         if earnings:
@@ -2326,7 +2344,7 @@ def draw_executive_brief(c, all_ticker_data: list[dict], macro_data: dict, marke
         c.rect(px, strip_top, panel_w, 14, fill=1, stroke=0)
         c.setFont("Helvetica-Bold", 6.5)
         c.setFillColor(white)
-        c.drawString(px + 4, strip_top + 4, "FED/MACRO TODAY")
+        c.drawString(px + 4, strip_top + 4, "FED & ECONOMY TODAY")
 
         macro_events = mi.get("macro_events", {})
         events = macro_events.get("events", [])
@@ -2392,7 +2410,7 @@ def draw_executive_brief(c, all_ticker_data: list[dict], macro_data: dict, marke
         c.rect(px, strip_top, panel_w, 14, fill=1, stroke=0)
         c.setFont("Helvetica-Bold", 6.5)
         c.setFillColor(white)
-        c.drawString(px + 4, strip_top + 4, "SHORT SQUEEZE WATCH")
+        c.drawString(px + 4, strip_top + 4, "SHORTS GETTING SQUEEZED?")
 
         short_data = mi.get("short_interest", {})
         squeeze = short_data.get("squeeze_candidates", [])
@@ -2406,20 +2424,23 @@ def draw_executive_brief(c, all_ticker_data: list[dict], macro_data: dict, marke
             c.setFont("Helvetica", 7)
             c.setFillColor(GS_DGRAY)
             c.drawString(px + 4, sy - 12,
-                         f"Short % Float: {sq.get('short_pct', 0):.1f}%")
+                         f"Bets against it: {sq.get('short_pct', 0):.1f}% of shares")
 
             direction = sq.get("direction", "stable")
             dir_col = BEAR_COL if direction == "increasing" else (
                 BULL_COL if direction == "decreasing" else NEUT_COL)
+            dir_plain = {"increasing": "MORE shorts piling in",
+                         "decreasing": "Shorts backing off",
+                         "stable": "Holding steady"}
             c.setFillColor(dir_col)
             c.setFont("Helvetica-Bold", 7)
             c.drawString(px + 4, sy - 24,
-                         f"SI Trend: {direction.upper()}")
+                         dir_plain.get(direction, direction))
 
             c.setFont("Helvetica", 7)
             c.setFillColor(GS_DGRAY)
             c.drawString(px + 4, sy - 36,
-                         f"Days to Cover: {sq.get('short_ratio', 0):.1f}")
+                         f"Squeeze pressure: {sq.get('short_ratio', 0):.1f} days")
 
             # Additional squeeze candidates
             for j, sq2 in enumerate(squeeze[1:3]):
@@ -2444,7 +2465,7 @@ def draw_executive_brief(c, all_ticker_data: list[dict], macro_data: dict, marke
         c.rect(36, credit_top, FULL_W, 14, fill=1, stroke=0)
         c.setFont("Helvetica-Bold", 7)
         c.setFillColor(white)
-        c.drawString(41, credit_top + 4, "CREDIT PULSE")
+        c.drawString(41, credit_top + 4, "ARE BIG INSTITUTIONS NERVOUS?")
 
         credit = mi.get("credit_signals", {})
         risk_sig = credit.get("risk_signal", "neutral")
@@ -2455,12 +2476,16 @@ def draw_executive_brief(c, all_ticker_data: list[dict], macro_data: dict, marke
         cy = credit_top - 16
 
         # Risk signal badge
+        sig_labels = {
+            "risk-on": "FEELING RELAXED", "risk-off": "BUYING PROTECTION",
+            "neutral": "ON THE FENCE", "caution": "GETTING CAUTIOUS",
+        }
         sig_colors = {
             "risk-on": BUY_COL, "risk-off": SELL_COL,
             "neutral": NEUT_COL, "caution": GOLD_COL,
         }
         sig_c = sig_colors.get(risk_sig, NEUT_COL)
-        badge_text = risk_sig.upper()
+        badge_text = sig_labels.get(risk_sig, risk_sig.upper())
         bw = stringWidth(badge_text, "Helvetica-Bold", 8) + 10
         c.setFillColor(sig_c)
         c.roundRect(36, cy, bw, 14, 3, fill=1, stroke=0)
@@ -2468,24 +2493,21 @@ def draw_executive_brief(c, all_ticker_data: list[dict], macro_data: dict, marke
         c.setFillColor(white)
         c.drawString(41, cy + 3, badge_text)
 
-        # Credit details line
-        hyg_pc = hyg.get("put_call_ratio", 0)
-        hyg_sig = hyg.get("signal", "n/a")
-        lqd_pc = lqd.get("put_call_ratio", 0)
-        lqd_sig = lqd.get("signal", "n/a")
-
+        spread_plain = {"widening": "borrowing getting pricier (stress)",
+                        "tightening": "borrowing getting cheaper (calm)",
+                        "stable": "no change in lending stress"}
         c.setFont("Helvetica", 7)
         c.setFillColor(GS_TEXT)
         detail_x = 36 + bw + 10
         c.drawString(detail_x, cy + 3,
-                     f"HYG P/C={hyg_pc:.2f} ({hyg_sig}) · "
-                     f"LQD P/C={lqd_pc:.2f} ({lqd_sig}) · "
-                     f"Spreads {spread_trend}")
+                     f"Junk bonds: {'cautious' if hyg.get('signal', '') == 'bearish' else 'calm'} · "
+                     f"Safe bonds: {'in demand' if lqd.get('signal', '') == 'bullish' else 'normal'} · "
+                     f"{spread_plain.get(spread_trend, spread_trend)}")
     except Exception:
         pass
 
     # ── Footer ────────────────────────────────────────────────────────────────
-    draw_footer(c, "Executive Brief — Page 1")
+    draw_footer(c, "Your Morning Brief — Page 1")
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -2511,7 +2533,7 @@ def draw_intelligence_summary(c, all_ticker_data: list[dict], market_intel: dict
         c.drawString(36, 775, "LANGSTON'S FINANCIAL INTELLIGENCE")
         c.setFont("Helvetica", 7)
         c.setFillColor(HexColor("#A8C8F0"))
-        c.drawString(36, 764, "INTELLIGENCE SUMMARY · EQUITY RESEARCH · DAILY")
+        c.drawString(36, 764, "THE FULL BREAKDOWN · DAILY")
         c.setFont("Helvetica-Bold", 9)
         c.setFillColor(white)
         c.drawRightString(576, 775, date_str)
@@ -2532,7 +2554,7 @@ def draw_intelligence_summary(c, all_ticker_data: list[dict], market_intel: dict
         c.rect(36, rot_top - 14, FULL_W, 14, fill=1, stroke=0)
         c.setFont("Helvetica-Bold", 7)
         c.setFillColor(white)
-        c.drawString(41, rot_top - 10, "SECTOR ROTATION ANALYSIS")
+        c.drawString(41, rot_top - 10, "WHERE MONEY IS ROTATING")
 
         rotation_text = mi.get("rotation_analysis", "")
         if not rotation_text:
@@ -2564,7 +2586,7 @@ def draw_intelligence_summary(c, all_ticker_data: list[dict], market_intel: dict
         c.rect(36, tbl_top, FULL_W, 14, fill=1, stroke=0)
         c.setFont("Helvetica-Bold", 7)
         c.setFillColor(white)
-        c.drawString(41, tbl_top + 4, "WATCHLIST — CONVICTION TABLE")
+        c.drawString(41, tbl_top + 4, "YOUR WATCHLIST — HOW WE FEEL ABOUT EACH")
 
         sorted_data = sorted(
             all_ticker_data,
@@ -2678,7 +2700,7 @@ def draw_intelligence_summary(c, all_ticker_data: list[dict], market_intel: dict
         c.rect(36, sug_top, FULL_W, 14, fill=1, stroke=0)
         c.setFont("Helvetica-Bold", 7)
         c.setFillColor(white)
-        c.drawString(41, sug_top + 4, "WATCHLIST SUGGESTIONS — TOP PROSPECTS")
+        c.drawString(41, sug_top + 4, "STOCKS WORTH ADDING TO YOUR WATCHLIST")
 
         top_prospects = (prospects or [])[:3]
         prospect_h = 30
@@ -2735,7 +2757,7 @@ def draw_intelligence_summary(c, all_ticker_data: list[dict], market_intel: dict
         c.rect(36, toc_top, FULL_W, 14, fill=1, stroke=0)
         c.setFont("Helvetica-Bold", 7)
         c.setFillColor(white)
-        c.drawString(41, toc_top + 4, "DETAILED REPORTS — TABLE OF CONTENTS")
+        c.drawString(41, toc_top + 4, "DEEP DIVES — FULL REPORTS START ON PAGE 3")
 
         sorted_data = sorted(
             all_ticker_data,
@@ -2791,7 +2813,7 @@ def draw_intelligence_summary(c, all_ticker_data: list[dict], market_intel: dict
         pass
 
     # ── Footer ────────────────────────────────────────────────────────────────
-    draw_footer(c, "Intelligence Summary — Page 2")
+    draw_footer(c, "The Full Breakdown — Page 2")
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -3214,6 +3236,7 @@ def build_combined_pdf(
     macro_text: str,
     prospects: list[dict] | None = None,
     market_intel: dict | None = None,
+    market_mood: str = "",
 ) -> Path:
     """Build the combined multi-page PDF with front page + per-ticker pages."""
     REPORTS_DIR.mkdir(exist_ok=True)
@@ -3229,7 +3252,7 @@ def build_combined_pdf(
 
     # ── Page 1: Executive Brief ──────────────────────────────────────────────
     if len(all_ticker_data) > 1:
-        draw_executive_brief(c, all_ticker_data, macro_data, market_intel or {})
+        draw_executive_brief(c, all_ticker_data, macro_data, market_intel or {}, market_mood=market_mood)
         c.showPage()
 
         # ── Page 2: Intelligence Summary ─────────────────────────────────────
@@ -3635,20 +3658,19 @@ def send_email_report(
         f'<h1 style="color:white;margin:0;font-size:18px;letter-spacing:1px">'
         f'{FIRM_NAME_U}</h1>'
         f'<p style="color:#A8C8F0;margin:5px 0 0;font-size:12px">'
-        f'MORNING INTELLIGENCE BRIEF &nbsp;&middot;&nbsp; EQUITY RESEARCH'
-        f' &nbsp;&middot;&nbsp; {date_str.upper()}</p></div>'
+        f'YOUR MORNING BRIEF &nbsp;&middot;&nbsp; {date_str.upper()}</p></div>'
 
         # Sub-bar
         '<div style="padding:12px 28px;background:#EEF1F6;border-bottom:1px solid #CDD3DF">'
         '<p style="margin:0;font-size:12px;color:#4A5568">'
-        'Your pre-market equity research brief is ready. '
+        'Good morning — your daily market brief is ready. '
         'Full report attached as PDF.</p></div>'
 
         # Conviction table
         '<div style="padding:20px 28px">'
         '<h2 style="font-size:13px;color:#002F5F;border-bottom:2px solid #002F5F;'
         'padding-bottom:6px;margin-bottom:12px;letter-spacing:0.5px">'
-        'CONVICTION RANKING</h2>'
+        'OUR STRONGEST PICKS</h2>'
         '<table style="width:100%;border-collapse:collapse;font-size:12px">'
         '<thead><tr style="background:#002F5F;color:white">'
         '<th style="padding:8px 6px;text-align:left">#</th>'
@@ -3666,7 +3688,7 @@ def send_email_report(
         '<div style="padding:0 28px 20px">'
         '<h2 style="font-size:13px;color:#002F5F;border-bottom:2px solid #002F5F;'
         'padding-bottom:6px;margin-bottom:12px;letter-spacing:0.5px">'
-        'MACRO INTELLIGENCE</h2>'
+        'THE BIG PICTURE</h2>'
         '<ul style="margin:0;padding-left:18px;font-size:12px;'
         f'line-height:1.7;color:#1A202C">{macro_bullets}</ul></div>'
 
@@ -3895,7 +3917,13 @@ def main():
     # ── 1. Fetch macro data (once, shared across all tickers) ─────────────────
     log.info("─── MACRO DATA ───")
     macro_data = get_macro_data()
-    macro_text = generate_macro_analysis(macro_data, client)
+    macro_result = generate_macro_analysis(macro_data, client)
+    if isinstance(macro_result, dict):
+        macro_text = macro_result.get("analysis", "")
+        market_mood = macro_result.get("mood", "")
+    else:
+        macro_text = macro_result
+        market_mood = ""
     log.info("  Macro analysis complete.")
 
     # ── 1b. Market-wide intelligence (independent of individual tickers) ──
@@ -4013,7 +4041,8 @@ def main():
         try:
             combined = build_combined_pdf(all_ticker_data, macro_data, macro_text,
                                           prospects=prospects,
-                                          market_intel=market_intel)
+                                          market_intel=market_intel,
+                                          market_mood=market_mood)
             pdf_list.append(combined)
         except Exception as exc:
             log.error("Combined PDF build FAILED: %s", exc, exc_info=True)
