@@ -407,6 +407,93 @@
       margin-bottom: 36px;
     }
 
+    /* ── Market Pulse ────────────────────────────────────────────────────── */
+    .market-pulse {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 14px 16px;
+      margin-bottom: 28px;
+    }
+    .mp-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+      margin-top: 12px;
+    }
+    .mp-subsection-title {
+      font-size: 10px;
+      font-weight: bold;
+      color: var(--navy);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--lgray);
+    }
+    .mp-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+      margin-bottom: 6px;
+    }
+    .mp-table th {
+      text-align: left;
+      font-size: 9px;
+      color: var(--dgray);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 4px 6px;
+      border-bottom: 2px solid var(--lgray);
+    }
+    .mp-table td {
+      padding: 4px 6px;
+      border-bottom: 1px solid var(--lgray);
+    }
+    .mp-table tr:last-child td { border-bottom: none; }
+    .mp-table td.ticker-col {
+      font-weight: bold;
+      color: var(--navy);
+    }
+    .mp-table .unusual-flag {
+      font-size: 8px;
+      color: var(--gold);
+      font-weight: bold;
+      margin-left: 4px;
+      text-transform: uppercase;
+    }
+    .credit-badge {
+      display: inline-block;
+      font-size: 11px;
+      padding: 4px 12px;
+      border-radius: 3px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .credit-risk-on     { background: #EBF5FB; color: var(--bull); border: 1px solid var(--bull); }
+    .credit-risk-off    { background: #FDEDEC; color: var(--bear); border: 1px solid var(--bear); }
+    .credit-neutral     { background: var(--lgray); color: var(--dgray); border: 1px solid var(--mgray); }
+    .credit-caution     { background: #FEF9E7; color: #7D6608; border: 1px solid #D4AC0D; }
+    .rotation-box {
+      background: var(--lgray);
+      border-left: 3px solid var(--gold);
+      padding: 10px 14px;
+      font-size: 11px;
+      line-height: 1.6;
+      color: var(--text);
+      border-radius: 0 4px 4px 0;
+    }
+    .mp-card {
+      background: var(--white);
+      border: 1px solid var(--lgray);
+      border-radius: 4px;
+      padding: 10px 12px;
+    }
+    @media (max-width: 600px) {
+      .mp-grid { grid-template-columns: 1fr; }
+    }
+
     /* ── Footer ──────────────────────────────────────────────────────────── */
     footer {
       background: var(--navy);
@@ -457,6 +544,9 @@
         <div class="macro-grid" id="macro-grid"></div>
       </div>
     </div>
+
+    <!-- Market Pulse -->
+    <div id="market-pulse-section" class="hidden"></div>
 
     <!-- Tickers -->
     <div class="section-title">Portfolio — Current Positions</div>
@@ -654,6 +744,130 @@ function buildMacroStrip(rates) {
   document.getElementById("macro-section").classList.remove("hidden");
 }
 
+// ── Build Market Pulse ────────────────────────────────────────────────────
+function buildMarketPulse(data) {
+  const mp = data.market_pulse;
+  if (!mp) return;
+
+  const container = document.getElementById("market-pulse-section");
+  if (!container) return;
+
+  let html = '';
+  html += '<div class="section-title">Market Pulse</div>';
+  html += '<div class="market-pulse">';
+  html += '<div class="mp-grid">';
+
+  // ── Sector Flow Rankings ──
+  if (mp.sector_flow && mp.sector_flow.length) {
+    html += '<div class="mp-card">';
+    html += '<div class="mp-subsection-title">Sector Flow Rankings</div>';
+    html += '<table class="mp-table">';
+    html += '<tr><th>Sector</th><th>P/C Ratio</th><th>Signal</th></tr>';
+    mp.sector_flow.forEach(function(s) {
+      const sigCls = s.signal === 'bullish' ? 'sig-bullish'
+                   : s.signal === 'bearish' ? 'sig-bearish'
+                   : 'sig-neutral';
+      const unusualTag = s.unusual
+        ? '<span class="unusual-flag">Unusual Vol</span>'
+        : '';
+      html += '<tr>'
+        + '<td class="ticker-col">' + (s.sector || '') + ' <span style="color:var(--dgray);font-weight:normal;font-size:9px">(' + (s.etf || '') + ')</span>' + unusualTag + '</td>'
+        + '<td>' + Number(s.pc_ratio || 0).toFixed(2) + '</td>'
+        + '<td><span class="signal-badge ' + sigCls + '">' + (s.signal || 'neutral') + '</span></td>'
+        + '</tr>';
+    });
+    html += '</table>';
+    html += '</div>';
+  }
+
+  // ── Short Squeeze Candidates ──
+  if (mp.squeeze_candidates && mp.squeeze_candidates.length) {
+    html += '<div class="mp-card">';
+    html += '<div class="mp-subsection-title">Short Squeeze Candidates</div>';
+    html += '<table class="mp-table">';
+    html += '<tr><th>Ticker</th><th>Short %</th><th>Change %</th></tr>';
+    mp.squeeze_candidates.forEach(function(s) {
+      html += '<tr>'
+        + '<td class="ticker-col">' + (s.ticker || '') + '</td>'
+        + '<td>' + fmtPct(s.short_pct) + '</td>'
+        + '<td>' + fmtPct(s.change_pct) + '</td>'
+        + '</tr>';
+    });
+    html += '</table>';
+    html += '</div>';
+  }
+
+  // ── Congressional Trades ──
+  if (mp.congressional_trades && mp.congressional_trades.length) {
+    html += '<div class="mp-card">';
+    html += '<div class="mp-subsection-title">Congressional Trades</div>';
+    html += '<table class="mp-table">';
+    html += '<tr><th>Member</th><th>Ticker</th><th>Type</th><th>Amount</th><th>Date</th></tr>';
+    mp.congressional_trades.forEach(function(t) {
+      html += '<tr>'
+        + '<td>' + (t.member || '') + '</td>'
+        + '<td class="ticker-col">' + (t.ticker || '') + '</td>'
+        + '<td>' + (t.type || '') + '</td>'
+        + '<td>' + (t.amount || '') + '</td>'
+        + '<td>' + (t.date || '') + '</td>'
+        + '</tr>';
+    });
+    html += '</table>';
+    html += '</div>';
+  }
+
+  // ── Earnings Calendar ──
+  if (mp.earnings_calendar && mp.earnings_calendar.length) {
+    html += '<div class="mp-card">';
+    html += '<div class="mp-subsection-title">Earnings Calendar</div>';
+    html += '<table class="mp-table">';
+    html += '<tr><th>Ticker</th><th>Date</th><th>Implied Move</th><th>IV Status</th></tr>';
+    mp.earnings_calendar.forEach(function(e) {
+      const rc = (e.rich_cheap || '').toUpperCase();
+      const rcCls = rc === 'RICH' ? 'sig-bearish'
+                  : rc === 'CHEAP' ? 'sig-bullish'
+                  : 'sig-neutral';
+      html += '<tr>'
+        + '<td class="ticker-col">' + (e.ticker || '') + '</td>'
+        + '<td>' + (e.date || '') + '</td>'
+        + '<td>' + (e.implied_move != null ? fmtPct(e.implied_move) : '—') + '</td>'
+        + '<td><span class="signal-badge ' + rcCls + '">' + (rc || '—') + '</span></td>'
+        + '</tr>';
+    });
+    html += '</table>';
+    html += '</div>';
+  }
+
+  html += '</div>'; // close .mp-grid
+
+  // ── Credit Risk Signal ──
+  if (mp.credit_risk) {
+    const cr = mp.credit_risk.toLowerCase();
+    const crCls = cr === 'risk-on'  ? 'credit-risk-on'
+                : cr === 'risk-off' ? 'credit-risk-off'
+                : cr === 'caution'  ? 'credit-caution'
+                : 'credit-neutral';
+    const crLabel = mp.credit_risk.charAt(0).toUpperCase() + mp.credit_risk.slice(1);
+    html += '<div style="margin-top:12px">';
+    html += '<div class="mp-subsection-title">Credit Risk Signal</div>';
+    html += '<span class="credit-badge ' + crCls + '">' + crLabel + '</span>';
+    html += '</div>';
+  }
+
+  // ── Rotation Analysis ──
+  if (mp.rotation_analysis) {
+    html += '<div style="margin-top:12px">';
+    html += '<div class="mp-subsection-title">Rotation Analysis</div>';
+    html += '<div class="rotation-box">' + mp.rotation_analysis + '</div>';
+    html += '</div>';
+  }
+
+  html += '</div>'; // close .market-pulse
+
+  container.innerHTML = html;
+  container.classList.remove("hidden");
+}
+
 // ── Load + render ─────────────────────────────────────────────────────────
 async function loadDashboard() {
   try {
@@ -671,6 +885,9 @@ async function loadDashboard() {
 
     // Macro strip
     if (data.macro_rates) buildMacroStrip(data.macro_rates);
+
+    // Market Pulse
+    buildMarketPulse(data);
 
     // Ticker cards
     const grid = document.getElementById("ticker-grid");
