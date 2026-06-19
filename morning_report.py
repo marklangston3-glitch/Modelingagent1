@@ -1992,6 +1992,809 @@ def draw_market_intelligence_page2(c, market_intel: dict):
 
 
 # ════════════════════════════════════════════════════════════════════════════
+#  CANVAS DRAWING — EXECUTIVE BRIEF (Page 1)
+# ════════════════════════════════════════════════════════════════════════════
+
+def draw_executive_brief(c, all_ticker_data: list[dict], macro_data: dict, market_intel: dict):
+    """
+    Page 1 — Dense Bloomberg-terminal-style executive brief.
+    Each section is independently try/excepted so one failure won't crash the page.
+    """
+    date_str = datetime.now(timezone.utc).strftime("%B %d, %Y")
+    mi = market_intel if market_intel else {}
+
+    # ── Header (y=762-790) ────────────────────────────────────────────────────
+    try:
+        c.setFillColor(GS_NAVY)
+        c.rect(0, 762, PW, 30, fill=1, stroke=0)
+        c.setFont("Helvetica-Bold", 12)
+        c.setFillColor(white)
+        c.drawString(36, 775, "LANGSTON'S FINANCIAL INTELLIGENCE")
+        c.setFont("Helvetica", 7)
+        c.setFillColor(HexColor("#A8C8F0"))
+        c.drawString(36, 764, "EXECUTIVE BRIEF · EQUITY RESEARCH · DAILY")
+        c.setFont("Helvetica-Bold", 9)
+        c.setFillColor(white)
+        c.drawRightString(576, 775, date_str)
+        c.setFont("Helvetica", 7)
+        c.setFillColor(HexColor("#A8C8F0"))
+        c.drawRightString(576, 764, f"AI-Powered · {EMAIL}")
+        # Gold accent line
+        c.setStrokeColor(GOLD_COL)
+        c.setLineWidth(2.0)
+        c.line(0, 762, PW, 762)
+    except Exception:
+        pass
+
+    # ── Macro Snapshot (y=734-760) ────────────────────────────────────────────
+    try:
+        c.setFillColor(GS_NAVY)
+        c.rect(36, 746, FULL_W, 14, fill=1, stroke=0)
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(white)
+        c.drawString(41, 750, "MACRO SNAPSHOT")
+
+        rates = macro_data.get("rates", {}) if macro_data else {}
+        indicators = [
+            ("10Y Yield", "^TNX"),
+            ("VIX",       "^VIX"),
+            ("5Y Yield",  "^FVX"),
+            ("Gold ETF",  "GLD"),
+            ("3M T-Bill",  "^IRX"),
+        ]
+        box_w = 108  # 540/5
+        box_y = 734
+        box_h = 12
+        for idx, (label, key) in enumerate(indicators):
+            bx = 36 + idx * box_w
+            # Alternating background
+            bg = GS_LGRAY if idx % 2 == 1 else white
+            c.setFillColor(bg)
+            c.rect(bx, box_y, box_w, box_h, fill=1, stroke=0)
+
+            rd = rates.get(key, {})
+            val = rd.get("value", 0) if rd else 0
+            chg = rd.get("chg", 0) if rd else 0
+
+            # Label (top)
+            c.setFont("Helvetica", 6)
+            c.setFillColor(GS_DGRAY)
+            c.drawCentredString(bx + box_w / 2, box_y + 7, label)
+
+            # Value (center) — draw below box
+            c.setFont("Helvetica-Bold", 9)
+            c.setFillColor(GS_NAVY)
+            c.drawCentredString(bx + box_w / 2, box_y - 8, f"{val:.2f}" if val else "--")
+
+            # Change (bottom)
+            chg_col = BULL_COL if chg >= 0 else BEAR_COL
+            c.setFont("Helvetica", 7)
+            c.setFillColor(chg_col)
+            sign = "+" if chg >= 0 else ""
+            c.drawCentredString(bx + box_w / 2, box_y - 17, f"{sign}{chg:.2f}" if val else "")
+    except Exception:
+        pass
+
+    # ── Sector Pulse (y=700-732) ──────────────────────────────────────────────
+    try:
+        c.setFillColor(GS_NAVY)
+        c.rect(36, 718, FULL_W, 14, fill=1, stroke=0)
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(white)
+        c.drawString(41, 722, "SECTOR PULSE — OPTIONS FLOW")
+
+        sectors = mi.get("sector_flow", {}).get("sectors", [])
+        cell_w = FULL_W / max(len(sectors), 1) if sectors else 49
+        cell_y = 700
+        cell_h = 16
+
+        for idx, s in enumerate(sectors[:11]):
+            cx = 36 + idx * cell_w
+            sig = s.get("signal", "neutral")
+            if sig == "bullish":
+                bg = HexColor("#EBF5FB")
+            elif sig == "bearish":
+                bg = HexColor("#FDEDEC")
+            else:
+                bg = GS_LGRAY
+            c.setFillColor(bg)
+            c.rect(cx, cell_y, cell_w, cell_h, fill=1, stroke=0)
+
+            # Sector abbreviation
+            sector_name = s.get("sector", s.get("etf", ""))
+            abbr = sector_name[:5].upper() if sector_name else ""
+            c.setFont("Helvetica", 6)
+            c.setFillColor(GS_DGRAY)
+            c.drawCentredString(cx + cell_w / 2, cell_y + 9, abbr)
+
+            # P/C ratio
+            pc = s.get("put_call_ratio", 0)
+            c.setFont("Helvetica-Bold", 7)
+            c.setFillColor(GS_NAVY)
+            c.drawCentredString(cx + cell_w / 2, cell_y + 1, f"{pc:.2f}")
+
+            # Gold dot for unusual volume
+            if s.get("unusual_volume"):
+                c.setFillColor(GOLD_COL)
+                c.circle(cx + cell_w - 4, cell_y + cell_h - 3, 2, fill=1, stroke=0)
+    except Exception:
+        pass
+
+    # ── Top 3 Conviction Calls (y=588-698) ────────────────────────────────────
+    try:
+        c.setFillColor(GS_NAVY)
+        c.rect(36, 684, FULL_W, 14, fill=1, stroke=0)
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(white)
+        c.drawString(41, 688, "TOP CONVICTION CALLS")
+
+        sorted_data = sorted(
+            all_ticker_data,
+            key=lambda x: x["analysis"].get("conviction_score", 0),
+            reverse=True,
+        )
+        top3 = sorted_data[:3]
+        row_h = 30
+        for i, td in enumerate(top3):
+            ry = 684 - 14 - (i * row_h)
+            an = td["analysis"]
+            pd_ = td["price_data"]
+            conv = an.get("conviction_score", 5)
+            rtg = an.get("rating", "Neutral")
+            chg = pd_.get("change_pct", 0)
+            thesis = an.get("one_line_thesis", "Monitoring for catalyst.")[:70]
+
+            # Alternating row background
+            bg = GS_LGRAY if i % 2 == 0 else white
+            c.setFillColor(bg)
+            c.rect(36, ry, FULL_W, row_h, fill=1, stroke=0)
+
+            # Rank circle
+            c.setFillColor(GS_NAVY)
+            c.circle(50, ry + 15, 8, fill=1, stroke=0)
+            c.setFont("Helvetica-Bold", 8)
+            c.setFillColor(white)
+            c.drawCentredString(50, ry + 12, str(i + 1))
+
+            # Ticker
+            c.setFont("Helvetica-Bold", 10)
+            c.setFillColor(GS_NAVY)
+            c.drawString(64, ry + 17, td["ticker"])
+
+            # Rating badge
+            rtg_col = BUY_COL if rtg == "Buy" else (SELL_COL if rtg == "Sell" else NEUT_COL)
+            badge_x = 120
+            badge_w = stringWidth(rtg.upper(), "Helvetica-Bold", 7) + 8
+            c.setFillColor(rtg_col)
+            c.roundRect(badge_x, ry + 15, badge_w, 12, 3, fill=1, stroke=0)
+            c.setFont("Helvetica-Bold", 7)
+            c.setFillColor(white)
+            c.drawString(badge_x + 4, ry + 18, rtg.upper())
+
+            # Price + change
+            chg_col = BULL_COL if chg >= 0 else BEAR_COL
+            sign = "+" if chg >= 0 else ""
+            c.setFont("Helvetica", 8)
+            c.setFillColor(GS_TEXT)
+            c.drawString(badge_x + badge_w + 8, ry + 18,
+                         f"${pd_.get('price', 0):.2f}")
+            c.setFont("Helvetica", 7)
+            c.setFillColor(chg_col)
+            c.drawString(badge_x + badge_w + 55, ry + 18,
+                         f"{sign}{chg:.2f}%")
+
+            # Conviction
+            c.setFont("Helvetica-Bold", 9)
+            c.setFillColor(GS_NAVY)
+            c.drawString(badge_x + badge_w + 100, ry + 18, f"{conv}/10")
+
+            # Thesis
+            c.setFont("Helvetica", 7)
+            c.setFillColor(GS_DGRAY)
+            c.drawString(64, ry + 4, thesis)
+    except Exception:
+        pass
+
+    # ── Market-Wide Alerts (y=476-586) ────────────────────────────────────────
+    try:
+        alerts_top = 586
+        c.setFillColor(GS_NAVY)
+        c.rect(36, alerts_top, FULL_W, 14, fill=1, stroke=0)
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(white)
+        c.drawString(41, alerts_top + 4, "MARKET-WIDE ALERTS")
+
+        alert_items = []
+        # 1. Most unusual options
+        unusual = mi.get("unusual_activity", [])
+        if unusual:
+            u = unusual[0]
+            alert_items.append(
+                f"⚡ {u.get('ticker', '?')} ({u.get('sector', '?')}): "
+                f"{u.get('activity', 'unusual activity detected')}"
+            )
+        else:
+            alert_items.append("⚡ No unusual options activity detected")
+
+        # 2. Dark pool spike
+        dark_pool = mi.get("dark_pool", {})
+        flagged = dark_pool.get("flagged", [])
+        if flagged:
+            dp = flagged[0]
+            vol_spike = dp.get("volume_spike", dp.get("vol_spike", 0))
+            alert_items.append(
+                f"⚡ {dp.get('ticker', '?')}: {vol_spike:.1f}x avg vol, "
+                f"{dp.get('bias', 'neutral')}"
+            )
+        else:
+            alert_items.append("⚡ No dark pool spikes detected")
+
+        # 3. Congressional trade
+        congress = mi.get("congressional_trades", [])
+        if congress:
+            ct = congress[0]
+            alert_items.append(
+                f"⚡ {ct.get('member', '?')} {ct.get('type', '?')} "
+                f"{ct.get('ticker', '?')} {ct.get('amount', '?')}"
+            )
+        else:
+            alert_items.append("⚡ No recent congressional trades reported")
+
+        alert_h = 30
+        for idx, alert_text in enumerate(alert_items[:3]):
+            ay = alerts_top - 14 - (idx * alert_h)
+            # Alternating background
+            bg = GS_LGRAY if idx % 2 == 0 else white
+            c.setFillColor(bg)
+            c.rect(36, ay, FULL_W, alert_h, fill=1, stroke=0)
+
+            # Alert text — split into bold ticker and description
+            c.setFont("Helvetica", 8)
+            c.setFillColor(GS_TEXT)
+            # Truncate long alerts
+            display_text = alert_text[:100]
+            c.drawString(44, ay + 17, display_text[:80])
+            if len(display_text) > 80:
+                c.setFont("Helvetica", 7)
+                c.drawString(44, ay + 6, display_text[80:])
+    except Exception:
+        pass
+
+    # ── Three-Panel Strip (y=340-474) ─────────────────────────────────────────
+    strip_top = 474
+    panel_w = 176
+    panel_gap = 6
+    panel_h = 134
+
+    # Left panel: EARNINGS TO WATCH
+    try:
+        px = 36
+        c.setFillColor(GS_NAVY)
+        c.rect(px, strip_top, panel_w, 14, fill=1, stroke=0)
+        c.setFont("Helvetica-Bold", 6.5)
+        c.setFillColor(white)
+        c.drawString(px + 4, strip_top + 4, "EARNINGS TO WATCH")
+
+        earnings = mi.get("earnings_calendar", [])
+        if earnings:
+            e = earnings[0]
+            ey = strip_top - 18
+            c.setFont("Helvetica-Bold", 9)
+            c.setFillColor(GS_NAVY)
+            c.drawString(px + 4, ey, str(e.get("ticker", "?")))
+
+            c.setFont("Helvetica", 7)
+            c.setFillColor(GS_DGRAY)
+            c.drawString(px + 4, ey - 12,
+                         f"Date: {e.get('earnings_date', e.get('date', 'TBD'))}")
+
+            imp_move = e.get("implied_move_pct", 0)
+            hist_avg = e.get("hist_avg_move_pct", e.get("hist_avg_pct", 0))
+            c.drawString(px + 4, ey - 24,
+                         f"Implied: {imp_move:.1f}%  Hist: {hist_avg:.1f}%")
+
+            rc = e.get("rich_cheap", "")
+            if rc:
+                rc_col = SELL_COL if rc.lower() == "rich" else (
+                    BUY_COL if rc.lower() == "cheap" else NEUT_COL)
+                bw = stringWidth(rc.upper(), "Helvetica-Bold", 7) + 8
+                c.setFillColor(rc_col)
+                c.roundRect(px + 4, ey - 40, bw, 11, 3, fill=1, stroke=0)
+                c.setFont("Helvetica-Bold", 7)
+                c.setFillColor(white)
+                c.drawString(px + 8, ey - 37, rc.upper())
+
+            # Show additional earnings if room
+            for j, e2 in enumerate(earnings[1:3]):
+                c.setFont("Helvetica", 6.5)
+                c.setFillColor(GS_DGRAY)
+                c.drawString(px + 4, ey - 54 - (j * 12),
+                             f"{e2.get('ticker', '?')} — {e2.get('earnings_date', e2.get('date', 'TBD'))}"
+                             f"  ({e2.get('implied_move_pct', 0):.1f}%)")
+        else:
+            c.setFont("Helvetica", 7)
+            c.setFillColor(GS_DGRAY)
+            c.drawString(px + 4, strip_top - 18, "No major earnings")
+            c.drawString(px + 4, strip_top - 30, "this week")
+    except Exception:
+        pass
+
+    # Center panel: FED/MACRO TODAY
+    try:
+        px = 36 + panel_w + panel_gap
+        c.setFillColor(GS_NAVY)
+        c.rect(px, strip_top, panel_w, 14, fill=1, stroke=0)
+        c.setFont("Helvetica-Bold", 6.5)
+        c.setFillColor(white)
+        c.drawString(px + 4, strip_top + 4, "FED/MACRO TODAY")
+
+        macro_events = mi.get("macro_events", {})
+        events = macro_events.get("events", [])
+        # Filter for HIGH/CRITICAL events
+        high_events = [e for e in events
+                       if e.get("importance", "").lower() in ("high", "critical")]
+        display_events = high_events if high_events else events
+
+        if display_events:
+            ev = display_events[0]
+            ey = strip_top - 18
+            c.setFont("Helvetica-Bold", 8)
+            c.setFillColor(GS_NAVY)
+            name = ev.get("event", ev.get("name", "?"))
+            c.drawString(px + 4, ey, str(name)[:24])
+
+            c.setFont("Helvetica", 7)
+            c.setFillColor(GS_DGRAY)
+            c.drawString(px + 4, ey - 12,
+                         f"Date: {ev.get('date', 'TBD')}")
+
+            imp = ev.get("importance", "medium")
+            imp_colors = {"high": SELL_COL, "critical": SELL_COL,
+                          "medium": GOLD_COL, "low": NEUT_COL}
+            imp_c = imp_colors.get(imp.lower(), NEUT_COL)
+            bw = stringWidth(imp.upper(), "Helvetica-Bold", 7) + 8
+            c.setFillColor(imp_c)
+            c.roundRect(px + 4, ey - 28, bw, 11, 3, fill=1, stroke=0)
+            c.setFont("Helvetica-Bold", 7)
+            c.setFillColor(white)
+            c.drawString(px + 8, ey - 25, imp.upper())
+
+            rate_sens = macro_events.get("rate_sensitivity", "")
+            if rate_sens:
+                c.setFont("Helvetica", 7)
+                c.setFillColor(GS_DGRAY)
+                # Wrap rate sensitivity text
+                rs_display = str(rate_sens)[:80]
+                c.drawString(px + 4, ey - 42, rs_display[:28])
+                if len(rs_display) > 28:
+                    c.drawString(px + 4, ey - 52, rs_display[28:56])
+                if len(rs_display) > 56:
+                    c.drawString(px + 4, ey - 62, rs_display[56:])
+
+            # Additional events
+            for j, ev2 in enumerate(display_events[1:3]):
+                c.setFont("Helvetica", 6.5)
+                c.setFillColor(GS_DGRAY)
+                ev2_name = ev2.get("event", ev2.get("name", "?"))
+                c.drawString(px + 4, ey - 72 - (j * 12),
+                             f"{str(ev2_name)[:24]} [{ev2.get('importance', '?').upper()}]")
+        else:
+            c.setFont("Helvetica", 7)
+            c.setFillColor(GS_DGRAY)
+            c.drawString(px + 4, strip_top - 18, "No major events today")
+    except Exception:
+        pass
+
+    # Right panel: SHORT SQUEEZE WATCH
+    try:
+        px = 36 + 2 * (panel_w + panel_gap)
+        c.setFillColor(GS_NAVY)
+        c.rect(px, strip_top, panel_w, 14, fill=1, stroke=0)
+        c.setFont("Helvetica-Bold", 6.5)
+        c.setFillColor(white)
+        c.drawString(px + 4, strip_top + 4, "SHORT SQUEEZE WATCH")
+
+        short_data = mi.get("short_interest", {})
+        squeeze = short_data.get("squeeze_candidates", [])
+        if squeeze:
+            sq = squeeze[0]
+            sy = strip_top - 18
+            c.setFont("Helvetica-Bold", 9)
+            c.setFillColor(GS_NAVY)
+            c.drawString(px + 4, sy, str(sq.get("ticker", "?")))
+
+            c.setFont("Helvetica", 7)
+            c.setFillColor(GS_DGRAY)
+            c.drawString(px + 4, sy - 12,
+                         f"Short % Float: {sq.get('short_pct', 0):.1f}%")
+
+            direction = sq.get("direction", "stable")
+            dir_col = BEAR_COL if direction == "increasing" else (
+                BULL_COL if direction == "decreasing" else NEUT_COL)
+            c.setFillColor(dir_col)
+            c.setFont("Helvetica-Bold", 7)
+            c.drawString(px + 4, sy - 24,
+                         f"SI Trend: {direction.upper()}")
+
+            c.setFont("Helvetica", 7)
+            c.setFillColor(GS_DGRAY)
+            c.drawString(px + 4, sy - 36,
+                         f"Days to Cover: {sq.get('short_ratio', 0):.1f}")
+
+            # Additional squeeze candidates
+            for j, sq2 in enumerate(squeeze[1:3]):
+                c.setFont("Helvetica", 6.5)
+                c.setFillColor(GS_DGRAY)
+                c.drawString(px + 4, sy - 52 - (j * 12),
+                             f"{sq2.get('ticker', '?')} — "
+                             f"{sq2.get('short_pct', 0):.1f}% SI, "
+                             f"{sq2.get('direction', 'stable')}")
+        else:
+            c.setFont("Helvetica", 7)
+            c.setFillColor(GS_DGRAY)
+            c.drawString(px + 4, strip_top - 18, "No squeeze setups")
+            c.drawString(px + 4, strip_top - 30, "detected")
+    except Exception:
+        pass
+
+    # ── Credit Pulse (y=300-338) ──────────────────────────────────────────────
+    try:
+        credit_top = 338
+        c.setFillColor(GS_NAVY)
+        c.rect(36, credit_top, FULL_W, 14, fill=1, stroke=0)
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(white)
+        c.drawString(41, credit_top + 4, "CREDIT PULSE")
+
+        credit = mi.get("credit_signals", {})
+        risk_sig = credit.get("risk_signal", "neutral")
+        spread_trend = credit.get("spread_trend", "stable")
+        hyg = credit.get("hyg", {})
+        lqd = credit.get("lqd", {})
+
+        cy = credit_top - 16
+
+        # Risk signal badge
+        sig_colors = {
+            "risk-on": BUY_COL, "risk-off": SELL_COL,
+            "neutral": NEUT_COL, "caution": GOLD_COL,
+        }
+        sig_c = sig_colors.get(risk_sig, NEUT_COL)
+        badge_text = risk_sig.upper()
+        bw = stringWidth(badge_text, "Helvetica-Bold", 8) + 10
+        c.setFillColor(sig_c)
+        c.roundRect(36, cy, bw, 14, 3, fill=1, stroke=0)
+        c.setFont("Helvetica-Bold", 8)
+        c.setFillColor(white)
+        c.drawString(41, cy + 3, badge_text)
+
+        # Credit details line
+        hyg_pc = hyg.get("put_call_ratio", 0)
+        hyg_sig = hyg.get("signal", "n/a")
+        lqd_pc = lqd.get("put_call_ratio", 0)
+        lqd_sig = lqd.get("signal", "n/a")
+
+        c.setFont("Helvetica", 7)
+        c.setFillColor(GS_TEXT)
+        detail_x = 36 + bw + 10
+        c.drawString(detail_x, cy + 3,
+                     f"HYG P/C={hyg_pc:.2f} ({hyg_sig}) · "
+                     f"LQD P/C={lqd_pc:.2f} ({lqd_sig}) · "
+                     f"Spreads {spread_trend}")
+    except Exception:
+        pass
+
+    # ── Footer ────────────────────────────────────────────────────────────────
+    draw_footer(c, "Executive Brief — Page 1")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  CANVAS DRAWING — INTELLIGENCE SUMMARY (Page 2)
+# ════════════════════════════════════════════════════════════════════════════
+
+def draw_intelligence_summary(c, all_ticker_data: list[dict], market_intel: dict, prospects: list):
+    """
+    Page 2 — Intelligence Summary with sector rotation, conviction table,
+    prospect suggestions, and table of contents.
+    Each section is independently try/excepted.
+    """
+    date_str = datetime.now(timezone.utc).strftime("%B %d, %Y")
+    mi = market_intel if market_intel else {}
+    st = _styles()
+
+    # ── Header (y=762-790) ────────────────────────────────────────────────────
+    try:
+        c.setFillColor(GS_NAVY)
+        c.rect(0, 762, PW, 30, fill=1, stroke=0)
+        c.setFont("Helvetica-Bold", 12)
+        c.setFillColor(white)
+        c.drawString(36, 775, "LANGSTON'S FINANCIAL INTELLIGENCE")
+        c.setFont("Helvetica", 7)
+        c.setFillColor(HexColor("#A8C8F0"))
+        c.drawString(36, 764, "INTELLIGENCE SUMMARY · EQUITY RESEARCH · DAILY")
+        c.setFont("Helvetica-Bold", 9)
+        c.setFillColor(white)
+        c.drawRightString(576, 775, date_str)
+        c.setFont("Helvetica", 7)
+        c.setFillColor(HexColor("#A8C8F0"))
+        c.drawRightString(576, 764, f"AI-Powered · {EMAIL}")
+        # Gold accent line
+        c.setStrokeColor(GOLD_COL)
+        c.setLineWidth(2.0)
+        c.line(0, 762, PW, 762)
+    except Exception:
+        pass
+
+    # ── Sector Rotation Analysis (y=654-760) ──────────────────────────────────
+    try:
+        rot_top = 760
+        c.setFillColor(GS_NAVY)
+        c.rect(36, rot_top - 14, FULL_W, 14, fill=1, stroke=0)
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(white)
+        c.drawString(41, rot_top - 10, "SECTOR ROTATION ANALYSIS")
+
+        rotation_text = mi.get("rotation_analysis", "")
+        if not rotation_text:
+            rotation_text = "Sector rotation data unavailable."
+
+        # Gold left border accent
+        c.setStrokeColor(GOLD_COL)
+        c.setLineWidth(3)
+        c.line(36, rot_top - 18, 36, 654)
+
+        rot_style = ParagraphStyle(
+            "RotBody", fontName="Helvetica", fontSize=8, leading=11,
+            textColor=GS_TEXT, alignment=TA_JUSTIFY,
+        )
+        rot_story = [Paragraph(xe(str(rotation_text)), rot_style)]
+        rot_frame = Frame(
+            42, 654, FULL_W - 6, rot_top - 18 - 654,
+            leftPadding=4, rightPadding=4, topPadding=2, bottomPadding=2,
+            showBoundary=0,
+        )
+        rot_frame.addFromList(rot_story, c)
+    except Exception:
+        pass
+
+    # ── Watchlist Conviction Table (y=374-652) ────────────────────────────────
+    try:
+        tbl_top = 652
+        c.setFillColor(GS_NAVY)
+        c.rect(36, tbl_top, FULL_W, 14, fill=1, stroke=0)
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(white)
+        c.drawString(41, tbl_top + 4, "WATCHLIST — CONVICTION TABLE")
+
+        sorted_data = sorted(
+            all_ticker_data,
+            key=lambda x: x["analysis"].get("conviction_score", 0),
+            reverse=True,
+        )
+
+        hdr_p = ParagraphStyle("WCH", fontName="Helvetica-Bold", fontSize=6,
+                                textColor=white, alignment=TA_CENTER)
+        hdr_l = ParagraphStyle("WCHL", fontName="Helvetica-Bold", fontSize=6,
+                                textColor=white, alignment=TA_LEFT)
+
+        col_widths = [16, 32, 80, 40, 34, 34, 28, 40, 28, 28, 28, 152]
+        conv_rows = [[
+            Paragraph("#", hdr_p),
+            Paragraph("TICKER", hdr_p),
+            Paragraph("COMPANY", hdr_l),
+            Paragraph("PRICE", hdr_p),
+            Paragraph("1D%", hdr_p),
+            Paragraph("RATING", hdr_p),
+            Paragraph("CONV", hdr_p),
+            Paragraph("1Y BASE", hdr_p),
+            Paragraph("OPT", hdr_p),
+            Paragraph("INS", hdr_p),
+            Paragraph("INST", hdr_p),
+            Paragraph("THESIS", hdr_l),
+        ]]
+
+        cell_c = ParagraphStyle("WCC", fontName="Helvetica", fontSize=7,
+                                 alignment=TA_CENTER)
+        cell_l = ParagraphStyle("WCL", fontName="Helvetica", fontSize=7,
+                                 alignment=TA_LEFT)
+        cell_b = ParagraphStyle("WCB", fontName="Helvetica-Bold", fontSize=7,
+                                 alignment=TA_CENTER)
+
+        for rank, td in enumerate(sorted_data, 1):
+            an = td["analysis"]
+            pd_ = td["price_data"]
+            conv = an.get("conviction_score", 5)
+            chg = pd_.get("change_pct", 0)
+            rtg = an.get("rating", "Neutral")
+            thesis = an.get("one_line_thesis", "Monitoring for catalyst.")[:40]
+            chg_col = "#1A5276" if chg >= 0 else "#7B241C"
+            rtg_col = "#1A5276" if rtg == "Buy" else (
+                "#7B241C" if rtg == "Sell" else "#4A5568")
+
+            pt_1yr_base = an.get("price_targets", {}).get("1yr", {}).get("base")
+            pt_str = f"${pt_1yr_base:.2f}" if pt_1yr_base else "—"
+
+            # Smart money signals
+            opt_data = td.get("options") or {}
+            ins_data = td.get("insider") or {}
+            inst_data = td.get("institutional") or {}
+            opt_sig = opt_data.get("flow_signal", "neutral") if opt_data else "neutral"
+            ins_sig = ins_data.get("net_signal", "neutral") if ins_data else "neutral"
+            inst_sig = inst_data.get("smart_money_signal", "neutral") if inst_data else "neutral"
+
+            def _signal_cell(sig):
+                sig = str(sig).lower() if sig else "neutral"
+                if sig == "bullish":
+                    return f'<font color="#1A5276">▲</font>'
+                elif sig == "bearish":
+                    return f'<font color="#7B241C">▼</font>'
+                else:
+                    return f'<font color="#4A5568">●</font>'
+
+            conv_rows.append([
+                Paragraph(str(rank), cell_b),
+                Paragraph(f'<font color="#0E4DA4"><b>{xe(td["ticker"])}</b></font>', cell_c),
+                Paragraph(xe(td["company"])[:20], cell_l),
+                Paragraph(f"${pd_.get('price', 0):.2f}", cell_c),
+                Paragraph(f'<font color="{chg_col}">{chg:+.2f}%</font>', cell_c),
+                Paragraph(f'<font color="{rtg_col}"><b>{xe(rtg)}</b></font>', cell_c),
+                Paragraph(f'<font color="#002F5F"><b>{conv}/10</b></font>', cell_c),
+                Paragraph(f'<font color="#1A5276"><b>{pt_str}</b></font>', cell_c),
+                Paragraph(_signal_cell(opt_sig), cell_c),
+                Paragraph(_signal_cell(ins_sig), cell_c),
+                Paragraph(_signal_cell(inst_sig), cell_c),
+                Paragraph(xe(thesis), cell_l),
+            ])
+
+        conv_tbl = Table(conv_rows, colWidths=col_widths)
+        tbl_style_cmds = [
+            ("BACKGROUND",    (0, 0), (-1, 0), GS_NAVY),
+            ("TOPPADDING",    (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 2),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 2),
+            ("LINEBELOW",     (0, 0), (-1, -1), 0.3, GS_LINE),
+            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ]
+        for i in range(1, len(conv_rows)):
+            tbl_style_cmds.append(("BACKGROUND", (0, i), (-1, i),
+                                   GS_LGRAY if i % 2 == 0 else white))
+        conv_tbl.setStyle(TableStyle(tbl_style_cmds))
+
+        tbl_h = min(14 * len(conv_rows) + 4, tbl_top - 374)
+        tbl_frame = Frame(
+            36, tbl_top - tbl_h, FULL_W, tbl_h,
+            leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0,
+            showBoundary=0,
+        )
+        tbl_frame.addFromList([conv_tbl], c)
+    except Exception:
+        pass
+
+    # ── Watchlist Suggestions (y=254-372) ─────────────────────────────────────
+    try:
+        sug_top = 372
+        c.setFillColor(GS_NAVY)
+        c.rect(36, sug_top, FULL_W, 14, fill=1, stroke=0)
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(white)
+        c.drawString(41, sug_top + 4, "WATCHLIST SUGGESTIONS — TOP PROSPECTS")
+
+        top_prospects = (prospects or [])[:3]
+        prospect_h = 30
+
+        if top_prospects:
+            for idx, p in enumerate(top_prospects):
+                py = sug_top - 14 - (idx * prospect_h)
+                bg = GS_LGRAY if idx % 2 == 0 else white
+                c.setFillColor(bg)
+                c.rect(36, py, FULL_W, prospect_h, fill=1, stroke=0)
+
+                # Rank
+                c.setFont("Helvetica-Bold", 9)
+                c.setFillColor(GS_NAVY)
+                c.drawString(40, py + 17, f"{idx + 1}.")
+
+                # Ticker bold
+                c.setFont("Helvetica-Bold", 9)
+                c.setFillColor(GS_NAVY)
+                c.drawString(56, py + 17, str(p.get("ticker", "?")))
+
+                # Company
+                c.setFont("Helvetica", 7)
+                c.setFillColor(GS_DGRAY)
+                company = str(p.get("company", ""))[:30]
+                c.drawString(100, py + 17, company)
+
+                # Score badge
+                score = p.get("score", 0)
+                score_text = f"{score}/100" if score else "N/A"
+                bw = stringWidth(score_text, "Helvetica-Bold", 7) + 8
+                c.setFillColor(GS_BLUE)
+                c.roundRect(300, py + 14, bw, 12, 3, fill=1, stroke=0)
+                c.setFont("Helvetica-Bold", 7)
+                c.setFillColor(white)
+                c.drawString(304, py + 17, score_text)
+
+                # Thesis
+                thesis = str(p.get("thesis", ""))[:65]
+                c.setFont("Helvetica", 7)
+                c.setFillColor(GS_DGRAY)
+                c.drawString(56, py + 4, thesis)
+        else:
+            c.setFont("Helvetica", 7)
+            c.setFillColor(GS_DGRAY)
+            c.drawString(40, sug_top - 20, "No prospect suggestions available.")
+    except Exception:
+        pass
+
+    # ── Table of Contents (y=84-252) ──────────────────────────────────────────
+    try:
+        toc_top = 252
+        c.setFillColor(GS_NAVY)
+        c.rect(36, toc_top, FULL_W, 14, fill=1, stroke=0)
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(white)
+        c.drawString(41, toc_top + 4, "DETAILED REPORTS — TABLE OF CONTENTS")
+
+        sorted_data = sorted(
+            all_ticker_data,
+            key=lambda x: x["analysis"].get("conviction_score", 0),
+            reverse=True,
+        )
+        toc_y = toc_top - 16
+        page_num = 3  # Pages 1-2 are exec brief + intel summary
+
+        for td in sorted_data:
+            if toc_y < 86:
+                break
+            an = td["analysis"]
+            rtg = an.get("rating", "Neutral")
+            conv = an.get("conviction_score", 5)
+            end_page = page_num + 1  # Each ticker takes 2 pages
+
+            # Page range
+            c.setFont("Helvetica", 7.5)
+            c.setFillColor(GS_DGRAY)
+            c.drawString(40, toc_y, f"Pages {page_num}–{end_page}")
+
+            # Ticker + company
+            c.setFont("Helvetica-Bold", 7.5)
+            c.setFillColor(GS_NAVY)
+            c.drawString(100, toc_y, f"{td['ticker']}")
+
+            c.setFont("Helvetica", 7.5)
+            c.setFillColor(GS_TEXT)
+            company_display = td.get("company", "")[:35]
+            c.drawString(140, toc_y, f"— {company_display}")
+
+            # Rating
+            rtg_col = BUY_COL if rtg == "Buy" else (
+                SELL_COL if rtg == "Sell" else NEUT_COL)
+            c.setFont("Helvetica-Bold", 7)
+            c.setFillColor(rtg_col)
+            c.drawString(400, toc_y, rtg)
+
+            # Conviction
+            c.setFont("Helvetica-Bold", 7)
+            c.setFillColor(GS_NAVY)
+            c.drawString(460, toc_y, f"Conviction {conv}/10")
+
+            # Divider line
+            c.setStrokeColor(GS_LINE)
+            c.setLineWidth(0.3)
+            c.line(40, toc_y - 3, 576, toc_y - 3)
+
+            toc_y -= 14
+            page_num += 2
+    except Exception:
+        pass
+
+    # ── Footer ────────────────────────────────────────────────────────────────
+    draw_footer(c, "Intelligence Summary — Page 2")
+
+
+# ════════════════════════════════════════════════════════════════════════════
 #  CANVAS DRAWING — FRONT PAGE
 # ════════════════════════════════════════════════════════════════════════════
 
@@ -2424,16 +3227,13 @@ def build_combined_pdf(
 
     st = _styles()
 
-    # ── Page 1: Front Page ────────────────────────────────────────────────────
+    # ── Page 1: Executive Brief ──────────────────────────────────────────────
     if len(all_ticker_data) > 1:
-        draw_front_page(c, all_ticker_data, macro_data, macro_text)
+        draw_executive_brief(c, all_ticker_data, macro_data, market_intel or {})
         c.showPage()
 
-    # ── Market-Wide Intelligence Pages ────────────────────────────────────────
-    if market_intel:
-        draw_market_intelligence_page(c, market_intel)
-        c.showPage()
-        draw_market_intelligence_page2(c, market_intel)
+        # ── Page 2: Intelligence Summary ─────────────────────────────────────
+        draw_intelligence_summary(c, all_ticker_data, market_intel or {}, prospects or [])
         c.showPage()
 
     # ── Per-Ticker Pages ──────────────────────────────────────────────────────
