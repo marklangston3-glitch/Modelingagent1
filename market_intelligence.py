@@ -297,7 +297,7 @@ def generate_rotation_analysis(
             for s in squeeze_candidates[:5]
         )
 
-    prompt = f"""You are a smart friend who works on Wall Street explaining sector rotation to someone who invests but isn't a finance professional. Analyze the options flow data below and write 4-6 sentences on where it looks like big money is moving and why.
+    prompt = f"""You are a smart friend who works on Wall Street explaining sector rotation to someone who invests but isn't a finance professional. Analyze the options flow data below and write 5-7 sentences on where big money is moving, why, and what political or legislative forces are driving it.
 
 SECTOR OPTIONS FLOW (ranked most bullish to most bearish):
 {flow_lines}
@@ -305,16 +305,17 @@ SECTOR OPTIONS FLOW (ranked most bullish to most bearish):
 {squeeze_line}
 
 Write in plain English. Instead of "put/call skew expanded" say "the options market is betting big on..." Instead of "multiple compression" say "stocks could get cheaper if growth slows." Explain:
-1. Which sectors big money seems to be loading up on, and a guess at why
-2. Which sectors are being quietly exited or hedged against
+1. Which sectors big money seems to be loading up on — and connect it to what's happening in Washington when relevant (bills advancing, executive orders, tariffs, trade deals, government spending)
+2. Which sectors are being quietly exited or hedged against — and what policy or political headwind might be behind it
 3. What this pattern usually means for the next month or two
 4. Any interesting contradictions between what stocks are doing and what options are saying
+5. The non-obvious inference — what should I be thinking about that the headlines aren't covering?
 
 Output ONLY the paragraph — no headers, bullets, or extra formatting."""
 
     try:
         msg = client.messages.create(
-            model=ANTHROPIC_MODEL, max_tokens=400,
+            model=ANTHROPIC_MODEL, max_tokens=600,
             messages=[{"role": "user", "content": prompt}],
         )
         return msg.content[0].text.strip()

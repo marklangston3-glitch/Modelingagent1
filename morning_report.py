@@ -426,6 +426,8 @@ def generate_analysis(
 
     prompt = f"""You are a smart friend who works on Wall Street writing a quick morning update on {ticker}. Write like you're texting someone who invests but isn't a finance professional. Be clear, direct, use plain English. When you use a financial term, explain what it means in the same breath (e.g., "trading at 15x earnings — meaning investors are paying $15 for every $1 the company earns"). Today: {date_str}.
 
+IMPORTANT: Help me THINK about this stock, don't just describe what happened. I want inferences — "this probably means..." and "here's what to watch for..." Connect the price movement to the bigger picture: what's happening politically (bills, executive orders, tariffs, regulations, government spending) that helps or hurts {company}? What's the legislative tailwind or headwind? If a policy is being debated in Congress that touches this company's industry, tell me about it and what it means if it passes or fails.
+
 TICKER: {ticker}  |  COMPANY: {company}  |  EXCHANGE: {exch}
 Price: ${price:.2f} ({chg:+.2f}%)  |  Mkt Cap: {cap}  |  52-Wk: ${lo52}–${hi52}  ({pct_rng:.0f}% of range)
 
@@ -450,7 +452,7 @@ OUTPUT EXACTLY this format — no extra text outside these markers:
 {{
   "rating": "Buy",
   "price_target": 65.00,
-  "headline": "{ticker}: [Conversational headline, 10 words max — e.g., '{ticker}: Looking Strong After Big Customer Win']",
+  "headline": "{ticker}: [Conversational headline, 10 words max — e.g., '{ticker}: Policy Tailwinds Building as AI Bill Advances']",
   "growth_score": 8,
   "returns_score": 4,
   "multiple_score": 7,
@@ -464,7 +466,7 @@ OUTPUT EXACTLY this format — no extra text outside these markers:
   "pe_fwd": null,
   "ev_ebitda_fwd": null,
   "conviction_score": 7,
-  "one_line_thesis": "Plain-English thesis — e.g., 'This AI healthcare company is landing hospitals fast and the stock hasn't caught up yet'",
+  "one_line_thesis": "Plain-English thesis that connects business to bigger picture — e.g., 'AI healthcare play riding a wave of federal health-tech spending and hospital modernization mandates'",
   "price_targets": {{
     "1mo":  {{"bull": 55.00, "base": 48.00, "bear": 40.00}},
     "6mo":  {{"bull": 72.00, "base": 58.00, "bear": 38.00}},
@@ -482,48 +484,52 @@ OUTPUT EXACTLY this format — no extra text outside these markers:
 ===JSON_END===
 
 ===WHAT_CHANGED===
-• [What happened overnight in plain English — "The stock jumped 4% after announcing a deal with..." not "Shares appreciated on strategic partnership disclosure"]
+• [What happened overnight — lead with why it matters, not just what happened. "The stock popped 4% — looks like the market is reacting to the new defense contract, which makes sense because government AI spending is accelerating under the current administration."]
 • [Second bullet if applicable; omit if only one item]
 ===END_WHAT_CHANGED===
 
 ===IMPLICATIONS===
-[REQUIRED — 2–3 sentences in plain English. Explain what the latest news/price action actually means for someone holding or considering this stock. Connect the dots: "This matters because..." NEVER write placeholder text. Even when there are no new SEC filings, tell the reader what the current market environment means for {ticker}. Example: "The broader tech rally is lifting all boats, and {ticker} is riding that wave. But the real question is whether next quarter's revenue can back up this price."]
+[REQUIRED — 3–4 sentences. This is the most important section. Don't just describe — INFER. Connect the dots between what happened and what it MEANS going forward. Tie in the political/legislative environment when relevant: "The new executive order on AI safety standards could actually be a moat for {ticker} — they're already compliant, while smaller competitors will need to spend millions catching up." Or: "With the defense budget expansion passing the House, {company}'s government pipeline just got a bigger runway." NEVER write placeholder text. Always give me something to think about.]
 ===END_IMPLICATIONS===
 
+===POLICY_WATCH===
+[2–3 sentences. What's the political or regulatory angle for {company} RIGHT NOW? Is there a bill, tariff, trade deal, regulation, executive order, or government spending decision that could move this stock? Be specific. E.g., "The bipartisan AI infrastructure bill is in committee — if it passes, it could unlock $50B in federal AI contracts that {ticker} is positioned to compete for." Or "Watch the tariff negotiations with China this week — {company} sources 30% of components from Chinese suppliers, so any escalation hits their margins directly." If there's no direct political angle, say what regulatory environment the company operates in and whether that's getting friendlier or tougher.]
+===END_POLICY_WATCH===
+
 ===VALUATION===
-[2–3 sentences. Explain in plain English whether the stock is expensive or cheap and why. Instead of "EV/Revenue of 12x" say "investors are paying $12 for every $1 of revenue — that's pricey compared to peers at $8." State how much upside or downside you see from here.]
+[2–3 sentences. Is the stock expensive or cheap — and WHY. Instead of "EV/Revenue of 12x" say "investors are paying $12 for every $1 of revenue — that's pricey compared to peers at $8, but it might be justified if the government contract pipeline converts." Always tie valuation back to whether the business momentum justifies the price.]
 ===END_VALUATION===
 
 ===KEY_RISKS===
-• [Plain-English risk — e.g., "They're burning cash fast and might need to raise money, which dilutes your shares"]
-• [Another risk in conversational language]
-• [Third risk — keep it real and specific to this company]
+• [Risk that connects to current events — e.g., "If the defense spending bill gets trimmed in reconciliation, their biggest growth driver takes a hit"]
+• [Business-specific risk in plain English — e.g., "They're burning cash fast and might need to raise money, which dilutes your shares"]
+• [The risk nobody's talking about — something non-obvious]
 ===END_KEY_RISKS===
 
 ===PRICE_OUTLOOK_THESIS===
-[2–3 sentences explaining what needs to go right/wrong. E.g., "If they land two more big customers, this stock could run to $65. More likely scenario: steady growth gets us to $50. The risk? If revenue growth stalls, the premium valuation evaporates fast."]
+[2–3 sentences. Frame as "here's how I'm thinking about it" — give me the if/then logic. E.g., "If the AI spending bill passes AND they land two more government contracts, this stock could run to $65. My base case is steady growth gets us to $50 over a year. The scenario that kills the thesis? A regulatory crackdown on AI in healthcare — that's unlikely but would be devastating."]
 ===END_PRICE_OUTLOOK_THESIS===
 
 ===SECTOR_INTELLIGENCE===
-HEATING UP: [sectors where money is flowing in — name them conversationally]
-COOLING OFF: [sectors losing momentum]
-ROTATION WATCH: [1–2 sentences on where money is moving and why, in plain English — "Money is rotating out of safe dividend stocks into tech because..."]
-RELATED PLAY: [1–2 sentences on secondary opportunities — "If {ticker}'s sector keeps running, companies that supply them also benefit..."]
+HEATING UP: [which sectors and WHY — tie to policy/political momentum when applicable]
+COOLING OFF: [which sectors are losing steam — what's the headwind?]
+ROTATION WATCH: [1–2 sentences — where is money moving and what's driving it? "Money is rotating into defense and AI names because the new budget just cleared — that's a direct tailwind for {ticker}'s sector."]
+RELATED PLAY: [1–2 sentences — what's the second-order opportunity? "If {ticker}'s sector keeps running, the companies that build the infrastructure for them also benefit — think cloud providers and data center REITs."]
 ===END_SECTOR_INTELLIGENCE===
 
 ===OUTPERFORMERS===
-• [TICKER] ([Company name]): [plain-English reason — "up 30% this quarter because they crushed earnings estimates"]
-• [TICKER] ([Company name]): [plain-English reason]
-{ticker} CONTEXT: [Is {ticker} leading or lagging its peers? Say it straight.]
+• [TICKER] ([Company name]): [why they're winning — connect to catalysts]
+• [TICKER] ([Company name]): [why they're winning]
+{ticker} CONTEXT: [Is {ticker} leading or lagging its peer group? What does that tell us about where the stock goes from here?]
 ===END_OUTPERFORMERS===
 
 ===INVESTMENT_STRATEGY===
-CONVICTION: {{}}/10 — [one sentence explaining your confidence level in plain English]
-POSITION SIZE: [how much of your portfolio — and explain why this sizing makes sense for the risk]
-ENTRY POINTS: [where to buy — "I'd look to buy around $45-50 if it pulls back"]
-TIME HORIZON: [how long to hold and what you're waiting for]
-WHEN TO BAIL: [specific things that would make you sell — keep it concrete]
-HEDGING: [how to protect yourself — explain the strategy in plain English]
+CONVICTION: {{}}/10 — [one sentence — are you pounding the table or cautiously optimistic? Why?]
+POSITION SIZE: [how much and why — "I'd keep this at 3-5% because the upside is real but so is the volatility"]
+ENTRY POINTS: [where to buy — "The stock tends to pull back to $45 on macro fear days — that's when I'd add"]
+TIME HORIZON: [how long and what's the catalyst you're waiting for]
+WHEN TO BAIL: [specific triggers — "If revenue misses by more than 10% or the CEO leaves, I'm out"]
+HEDGING: [how to protect yourself — in plain English, not options jargon]
 ===END_INVESTMENT_STRATEGY===
 
 SCORING GUIDE for Investment Profile (1–10):
@@ -536,7 +542,7 @@ SCORING GUIDE for Investment Profile (1–10):
     log.info("  Calling Claude (%s) for %s …", MODEL, ticker)
     try:
         msg = client.messages.create(
-            model=MODEL, max_tokens=2500,
+            model=MODEL, max_tokens=3200,
             messages=[{"role": "user", "content": prompt}],
         )
     except Exception as api_err:
@@ -564,6 +570,7 @@ SCORING GUIDE for Investment Profile (1–10):
 
     parsed["what_changed"]          = _section("===WHAT_CHANGED===",          "===END_WHAT_CHANGED===")
     parsed["implications"]          = _section("===IMPLICATIONS===",           "===END_IMPLICATIONS===")
+    parsed["policy_watch"]          = _section("===POLICY_WATCH===",           "===END_POLICY_WATCH===")
     parsed["valuation"]             = _section("===VALUATION===",              "===END_VALUATION===")
     parsed["key_risks"]             = _section("===KEY_RISKS===",              "===END_KEY_RISKS===")
     parsed["price_outlook_thesis"]  = _section("===PRICE_OUTLOOK_THESIS===",   "===END_PRICE_OUTLOOK_THESIS===")
@@ -591,6 +598,8 @@ def generate_macro_analysis(macro_data: dict, client: anthropic.Anthropic) -> di
 
     prompt = f"""You are a smart friend who works on Wall Street giving a quick morning market update. Today: {date_str}. Write like you're texting someone who invests but isn't a finance professional — clear, direct, no jargon unless you explain it in the same breath.
 
+Your job is to help me THINK, not just inform me. Connect the dots between what's moving and WHY — especially the political and legislative angle. What's happening in Washington right now (bills being debated, executive orders, regulatory shifts, trade policy, tariffs, government spending) that's actually moving these numbers? Which political storylines should I be watching this week because they could move my portfolio?
+
 RATE ENVIRONMENT:
 {rate_lines}
 
@@ -600,21 +609,22 @@ SECTOR ETF PERFORMANCE (1D | 5D | 1M):
 OUTPUT EXACTLY this format — no extra text outside markers:
 
 ===MARKET_MOOD===
-[One punchy sentence summarizing the overall market vibe right now. Examples: "Markets are nervous today — everyone's watching the Fed." or "Risk-on morning — money is flowing into tech and growth names." Keep it under 20 words.]
+[One punchy sentence capturing the vibe AND the biggest driver. Examples: "Markets are shrugging off tariff fears — tech is leading because AI spending bills keep advancing." or "Nervous morning — the tax bill stalled in the Senate and growth stocks are selling off." Keep it under 25 words.]
 ===END_MARKET_MOOD===
 
 ===MACRO_ANALYSIS===
-• [What rates/bonds are telling us right now — translate the numbers into plain English. Instead of "10Y yield rose 5bps" say "borrowing costs are creeping up, which usually puts pressure on growth stocks"]
-• [Which sectors are hot and why — translate ETF moves into "money is flowing into X because..."]
-• [Which sectors are struggling and what's behind it — make it intuitive]
-• [What this means specifically for tech/AI stocks on our watchlist — connect the dots]
-• [The one thing to actually do with your portfolio today — be specific and practical]
+• RATES & WHAT THEY'RE TELLING US: [Translate the rate data into plain English — what's the bond market saying about the economy right now? If rates are moving, explain what's driving it (Fed talk, inflation data, government borrowing). End with: "For your portfolio, this means..."]
+• THE POLITICAL ANGLE: [What's happening in Washington RIGHT NOW that's moving markets or could move them this week? Be specific — name the bill, the executive order, the trade negotiation, the regulatory decision. Connect it directly to sectors and stocks. E.g., "The CHIPS Act extension just passed committee, which is a tailwind for semiconductor names..." or "The new tariff threats on Chinese imports are why industrial stocks are pulling back."]
+• WINNERS & WHY: [Which sectors are hot — but more importantly, WHY. Tie it to policy, political momentum, or legislative tailwinds when relevant. "Clean energy is running because the IRA tax credits just survived a repeal vote..."]
+• LOSERS & WHY: [Which sectors are struggling — connect to headwinds, regulatory risk, or political opposition. "Healthcare stocks are under pressure because drug pricing legislation is gaining traction..."]
+• WHAT I'D DO TODAY: [One specific, practical inference. Not just "be cautious" — give me something to think about. E.g., "If you've been waiting to add AI exposure, the pullback from the tariff scare might be your window — these policy fears tend to blow over in 2-3 weeks."]
+• THE THING MOST PEOPLE ARE MISSING: [One non-obvious connection or contrarian take. What's the second-order effect that the market hasn't priced in yet? E.g., "Everyone's focused on the tariff headline, but the real story is the infrastructure bill quietly moving through — that's a stealth catalyst for materials stocks."]
 ===END_MACRO_ANALYSIS==="""
 
     log.info("  Calling Claude for macro analysis …")
     try:
         msg = client.messages.create(
-            model=MODEL, max_tokens=700,
+            model=MODEL, max_tokens=1200,
             messages=[{"role": "user", "content": prompt}],
         )
         raw = msg.content[0].text
@@ -831,7 +841,7 @@ def build_left_story(
     story = [Spacer(1, 3)]
 
     # What's Changed
-    story.append(_sec_hdr_table("What's Changed", W, st))
+    story.append(_sec_hdr_table("What Happened", W, st))
     story.append(Spacer(1, 4))
     if filings:
         for f in filings:
@@ -846,29 +856,37 @@ def build_left_story(
     story.append(Spacer(1, 8))
 
     # Implications
-    story.append(_sec_hdr_table("Implications", W, st))
+    story.append(_sec_hdr_table("Why It Matters", W, st))
     story.append(Spacer(1, 4))
     impl = analysis.get("implications", "").strip()
     if not impl:
-        impl = "No new material overnight filings; the thesis is unchanged. Monitor price action and sector rotation for near-term entry signals."
+        impl = "Nothing major happened overnight — the thesis is intact. Keep an eye on price action and how the sector is moving for a potential entry point."
     story.append(Paragraph(xe(impl), st["body"]))
     story.append(Spacer(1, 8))
 
+    # Policy Watch
+    pw_text = analysis.get("policy_watch", "").strip()
+    if pw_text:
+        story.append(_sec_hdr_table("Policy & Political Watch", W, st))
+        story.append(Spacer(1, 4))
+        story.append(Paragraph(xe(pw_text), st["body"]))
+        story.append(Spacer(1, 8))
+
     # Valuation
-    story.append(_sec_hdr_table("Valuation", W, st))
+    story.append(_sec_hdr_table("Is It Expensive?", W, st))
     story.append(Spacer(1, 4))
     val = analysis.get("valuation", "").strip()
     story.append(Paragraph(xe(val) if val else "See key data table.", st["body"]))
     story.append(Spacer(1, 8))
 
     # Key Risks
-    story.append(_sec_hdr_table("Key Risks", W, st))
+    story.append(_sec_hdr_table("What Could Go Wrong", W, st))
     story.append(Spacer(1, 4))
     story.extend(_bullets(analysis.get("key_risks", ""), st["bullet"]))
     story.append(Spacer(1, 10))
 
     # Recent News
-    story.append(_sec_hdr_table("Recent News", W, st))
+    story.append(_sec_hdr_table("In the News", W, st))
     story.append(Spacer(1, 4))
     news_style = ParagraphStyle(
         "NS", fontName="Helvetica", fontSize=7.5, leading=11,
@@ -886,7 +904,7 @@ def build_left_story(
     # ── Options Intelligence ───────────────────────────────────────────────
     if options_data and not options_data.get("error"):
         story.append(Spacer(1, 8))
-        story.append(_sec_hdr_table("Options Intelligence", W, st))
+        story.append(_sec_hdr_table("What Options Traders Are Doing", W, st))
         story.append(Spacer(1, 3))
         opt = options_data
         sig = opt.get("flow_signal", "neutral")
@@ -914,7 +932,7 @@ def build_left_story(
     # ── Insider Activity ───────────────────────────────────────────────────
     if insider_data and not insider_data.get("error"):
         story.append(Spacer(1, 8))
-        story.append(_sec_hdr_table("Insider Activity  (30 Days)", W, st))
+        story.append(_sec_hdr_table("Are Insiders Buying or Selling?", W, st))
         story.append(Spacer(1, 3))
         ins = insider_data
         sig = ins.get("net_signal", "neutral")
@@ -943,7 +961,7 @@ def build_left_story(
     # ── Institutional Ownership ────────────────────────────────────────────
     if institutional_data and not institutional_data.get("error"):
         story.append(Spacer(1, 8))
-        story.append(_sec_hdr_table("Institutional Ownership", W, st))
+        story.append(_sec_hdr_table("Who Else Owns This Stock?", W, st))
         story.append(Spacer(1, 3))
         inst = institutional_data
         sig = inst.get("smart_money_signal", "neutral")
@@ -1116,7 +1134,7 @@ def build_page2_left_story(analysis: dict, st: dict, col_w: float) -> list:
     story = [Spacer(1, 3)]
 
     # Sector Intelligence
-    story.append(_sec_hdr_table("Sector Intelligence", col_w, st))
+    story.append(_sec_hdr_table("What's Moving in the Sector", col_w, st))
     story.append(Spacer(1, 4))
     si_text = analysis.get("sector_intelligence", "").strip()
     if si_text:
@@ -1140,7 +1158,7 @@ def build_page2_left_story(analysis: dict, st: dict, col_w: float) -> list:
     story.append(Spacer(1, 10))
 
     # Outperformers
-    story.append(_sec_hdr_table("Outperformers & Peer Context", col_w, st))
+    story.append(_sec_hdr_table("Who's Winning in This Space?", col_w, st))
     story.append(Spacer(1, 4))
     op_text = analysis.get("outperformers", "").strip()
     if op_text:
@@ -1172,7 +1190,7 @@ def build_page2_left_story(analysis: dict, st: dict, col_w: float) -> list:
 
 def build_page2_right_story(analysis: dict, st: dict, col_w: float) -> list:
     story = [Spacer(1, 3)]
-    story.append(_sec_hdr_table("Investment Strategy", col_w, st))
+    story.append(_sec_hdr_table("What I'd Do With This Stock", col_w, st))
     story.append(Spacer(1, 4))
 
     # Conviction score badge area
