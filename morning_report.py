@@ -3647,6 +3647,60 @@ def send_email_report(
             macro_bullets += f'<li style="margin-bottom:6px">{xe(line)}</li>\n'
     macro_bullets = macro_bullets or '<li>No macro data available.</li>'
 
+    # ── DCF Model Update section ──────────────────────────────────────────────
+    dcf_html = ""
+    try:
+        summary_path = REPO_DIR / ".rebuild_summary.json"
+        if summary_path.exists():
+            import json as _json
+            dcf_summary = _json.loads(summary_path.read_text())
+            if dcf_summary.get("triggered"):
+                rebuilt = dcf_summary.get("rebuilds", [])
+                filings = dcf_summary.get("filings", [])
+                run_at = dcf_summary.get("run_at", "")
+
+                filing_reasons = []
+                for f in filings:
+                    filing_reasons.append(
+                        f"{f.get('ticker', '?')} filed a {f.get('form', '?')} on {f.get('date', '?')}"
+                    )
+                reason_text = "; ".join(filing_reasons) if filing_reasons else "Scheduled rebuild"
+
+                model_links = ""
+                for ticker in rebuilt:
+                    dl_url = (
+                        f"https://github.com/marklangston3-glitch/modelingagent1"
+                        f"/raw/main/{ticker}_dcf.xlsx"
+                    )
+                    model_links += (
+                        f'<tr>'
+                        f'<td style="padding:8px 12px;font-weight:bold;color:#002F5F;'
+                        f'font-size:14px">{xe(ticker)}</td>'
+                        f'<td style="padding:8px 12px">'
+                        f'<a href="{dl_url}" '
+                        f'style="display:inline-block;background:#C9A84C;color:white;'
+                        f'padding:8px 18px;border-radius:5px;text-decoration:none;'
+                        f'font-weight:bold;font-size:13px">'
+                        f'Open {xe(ticker)} Model</a></td>'
+                        f'</tr>'
+                    )
+
+                dcf_html = (
+                    '<div style="padding:20px 28px;background:#FFF8E1;'
+                    'border-left:4px solid #C9A84C;margin:0 28px 20px">'
+                    '<h2 style="font-size:13px;color:#002F5F;margin:0 0 8px;'
+                    'letter-spacing:0.5px">'
+                    '📊 DCF MODELS UPDATED</h2>'
+                    f'<p style="margin:0 0 12px;font-size:12px;color:#4A5568">'
+                    f'<strong>Why:</strong> {xe(reason_text)}</p>'
+                    f'<table style="border-collapse:collapse">{model_links}</table>'
+                    '<p style="margin:10px 0 0;font-size:11px;color:#7B8794">'
+                    'Tap the button to download the latest Excel file directly to your phone.</p>'
+                    '</div>'
+                )
+    except Exception:
+        pass
+
     # ── Full HTML body ────────────────────────────────────────────────────────
     html_body = (
         '<!DOCTYPE html><html><head><meta charset="utf-8"></head>'
@@ -3691,6 +3745,9 @@ def send_email_report(
         'THE BIG PICTURE</h2>'
         '<ul style="margin:0;padding-left:18px;font-size:12px;'
         f'line-height:1.7;color:#1A202C">{macro_bullets}</ul></div>'
+
+        # DCF model updates (if any)
+        f'{dcf_html}'
 
         # Footer
         '<div style="padding:14px 28px;background:#002F5F;margin-top:8px">'
