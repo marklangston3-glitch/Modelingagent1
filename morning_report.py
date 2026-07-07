@@ -2581,15 +2581,21 @@ def draw_intelligence_summary(c, all_ticker_data: list[dict], market_intel: dict
         # Gold left border accent
         c.setStrokeColor(GOLD_COL)
         c.setLineWidth(3)
-        c.line(36, rot_top - 18, 36, 654)
+        c.line(36, rot_top - 18, 36, 608)
 
         rot_style = ParagraphStyle(
-            "RotBody", fontName="Helvetica", fontSize=8, leading=11,
-            textColor=GS_TEXT, alignment=TA_JUSTIFY,
+            "RotBody", fontName="Helvetica", fontSize=7.5, leading=10.5,
+            textColor=GS_TEXT, alignment=TA_JUSTIFY, spaceAfter=3,
         )
-        rot_story = [Paragraph(xe(str(rotation_text)), rot_style)]
+        # Split into sentences so Platypus can render as many as fit in the frame
+        # (a single long Paragraph taller than the frame gets dropped entirely)
+        import re as _re
+        sentences = _re.split(r'(?<=[.!?])\s+', str(rotation_text).strip())
+        rot_story = [Paragraph(xe(s), rot_style) for s in sentences if s.strip()]
+        rot_frame_top = rot_top - 18
+        rot_frame_bot = 608  # extend frame down, giving ~134pt of body space
         rot_frame = Frame(
-            42, 654, FULL_W - 6, rot_top - 18 - 654,
+            42, rot_frame_bot, FULL_W - 6, rot_frame_top - rot_frame_bot,
             leftPadding=4, rightPadding=4, topPadding=2, bottomPadding=2,
             showBoundary=0,
         )
@@ -2597,9 +2603,9 @@ def draw_intelligence_summary(c, all_ticker_data: list[dict], market_intel: dict
     except Exception:
         pass
 
-    # ── Watchlist Conviction Table (y=374-652) ────────────────────────────────
+    # ── Watchlist Conviction Table (y=374-606) ────────────────────────────────
     try:
-        tbl_top = 652
+        tbl_top = 606
         c.setFillColor(GS_NAVY)
         c.rect(36, tbl_top, FULL_W, 14, fill=1, stroke=0)
         c.setFont("Helvetica-Bold", 7)
