@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """
-jarvis_bot.py — Jarvis, the AI assistant for Langston's Financial Intelligence Discord.
+jarvis_bot.py — Jarvis, The Soup Kitchen's bot for Langston's Financial Intelligence.
 
 Environment variables:
     DISCORD_BOT_TOKEN   — Discord bot token (required)
     ANTHROPIC_API_KEY   — Anthropic API key (required)
     DISCORD_GUILD_ID    — Guild ID for instant slash-command sync (optional but recommended)
+    COFOUNDER_IDS       — Comma-separated Discord user IDs who can trigger polls by @mention
+                          (e.g. "123456789,987654321"). If unset, falls back to role names + guild owner.
 
-Roles recognized:
-    Admin, Moderator    — can use /poll
-    Co-Founder          — AI auto-generates polls on @mention request
+Roles that can create polls (slash command AND @mention):
+    Admin, Moderator, Co-Founder, Founder, Owner, Mod
+
+All decisions and errors are logged to jarvis_bot.log.
 """
 
 from __future__ import annotations
@@ -17,8 +20,10 @@ from __future__ import annotations
 import asyncio
 import datetime
 import json
+import logging
 import os
 import re
+import traceback
 import urllib.error
 import urllib.request
 from zoneinfo import ZoneInfo
@@ -27,6 +32,21 @@ import anthropic
 import discord
 from discord import app_commands
 from discord.ext import tasks
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+
+logging.basicConfig(
+    filename="jarvis_bot.log",
+    level=logging.INFO,
+    format="%(asctime)s  %(levelname)-8s  %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+log = logging.getLogger("jarvis")
+
+# Also log to stdout so Railway surfaces it in its dashboard
+_console = logging.StreamHandler()
+_console.setFormatter(logging.Formatter("%(asctime)s  %(levelname)-8s  %(message)s"))
+log.addHandler(_console)
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -38,15 +58,22 @@ CALENDAR_CHANNEL_NAME = "jarvis-calendar"
 CALENDAR_CATEGORY     = "FREE ANALYSIS"
 CALENDAR_FEED_URL     = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
 
-POLL_ROLES      = {"admin", "moderator", "co-founder", "co founder"}
-COFOUNDER_ROLES = {"co-founder", "co founder", "cofounder"}
-
-# Comma-separated Discord user IDs of co-founders — checked before role names.
+# Comma-separated Discord user IDs of founders who can trigger polls by @mention.
 # Set COFOUNDER_IDS=123456789,987654321 in Railway env vars.
+# If empty, falls back to guild owner + role name matching.
 _COFOUNDER_ID_SET: set[int] = {
     int(x.strip())
     for x in os.environ.get("COFOUNDER_IDS", "").split(",")
     if x.strip().isdigit()
+}
+
+# Role names (lowercase) whose holders can create polls via @mention or /poll.
+# Intentionally broad so different servers' naming conventions all work.
+_POLL_AUTHOR_ROLES: set[str] = {
+    "co-founder", "co founder", "cofounder",
+    "founder", "owner",
+    "admin", "administrator",
+    "moderator", "mod",
 }
 
 CALENDAR_RE = re.compile(
@@ -55,14 +82,10 @@ CALENDAR_RE = re.compile(
     re.IGNORECASE,
 )
 
-POLL_REQUEST_RE = re.compile(
-    r"\b(make|create|post|run|do)\s+(a\s+)?(poll|vote)\b",
-    re.IGNORECASE,
-)
-
-ET = ZoneInfo("America/New_York")
-
+ET      = ZoneInfo("America/New_York")
 AI_MODEL = "claude-opus-4-7"
+
+REACTION_NUMBERS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
 
 SYSTEM_PROMPT = """\
 You are Jarvis, The Soup Kitchen's bot for Langston's Financial Intelligence Discord.
@@ -85,8 +108,6 @@ Poll Bot, or any third-party bot — you are The Soup Kitchen's only bot and you
 of this natively. If unsure whether you can do something NOT on this list, say you'll flag
 it to the team instead of denying it."""
 
-REACTION_NUMBERS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
-
 # ── Discord client ─────────────────────────────────────────────────────────────
 
 intents = discord.Intents.default()
@@ -101,16 +122,42 @@ ai     = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 _calendar_posted_date: datetime.date | None = None
 
 
-# ── Role helpers ───────────────────────────────────────────────────────────────
+# ── Auth helpers ───────────────────────────────────────────────────────────────
+
+def is_poll_author(member: discord.Member) -> bool:
+    """
+    True if this member is allowed to trigger conversational poll creation.
+    Priority order:
+      1. COFOUNDER_IDS env var (explicit user IDs)
+      2. Guild owner (always a founder)
+      3. Any role whose lowercase name is in _POLL_AUTHOR_ROLES
+    """
+    # 1 — Explicit IDs
+    if _COFOUNDER_ID_SET:
+        if member.id in _COFOUNDER_ID_SET:
+            return True
+        # IDs are set but this user isn't in the list — deny
+        return False
+
+    # 2 — Guild owner
+    if hasattr(member, "guild") and member.guild and member.id == member.guild.owner_id:
+        return True
+
+    # 3 — Role names
+    member_roles_lower = {r.name.lower() for r in member.roles}
+    return bool(member_roles_lower & _POLL_AUTHOR_ROLES)
+
 
 def has_poll_permission(member: discord.Member) -> bool:
-    return any(r.name.lower() in POLL_ROLES for r in member.roles)
+    """True if member can use the /poll slash command (same set as is_poll_author)."""
+    return is_poll_author(member)
 
 
-def is_cofounder(member: discord.Member) -> bool:
-    if _COFOUNDER_ID_SET:
-        return member.id in _COFOUNDER_ID_SET
-    return any(r.name.lower() in COFOUNDER_ROLES for r in member.roles)
+def is_poll_intent(text: str) -> bool:
+    """True if the message is asking Jarvis to create a poll."""
+    t = text.lower()
+    intent_words = ("make", "create", "post", "run", "start", "put up", "launch")
+    return "poll" in t and any(w in t for w in intent_words)
 
 
 # ── ForexFactory calendar ──────────────────────────────────────────────────────
@@ -132,10 +179,10 @@ def fetch_ff_calendar() -> tuple[bool, list[dict]]:
             if e.get("country", "").upper() == "USD"
             and e.get("impact", "").lower() == "high"
         ]
-        # Sort by event date
         high_usd.sort(key=lambda e: e.get("date", ""))
         return True, high_usd
     except Exception:
+        log.exception("ForexFactory feed fetch failed")
         return False, []
 
 
@@ -195,7 +242,6 @@ def format_calendar_embed(feed_ok: bool, events: list[dict]) -> discord.Embed:
 
 
 def calendar_context_str(events: list[dict]) -> str:
-    """Plain-text calendar context injected into Claude prompts."""
     now_et   = datetime.datetime.now(ET)
     week_mon = now_et - datetime.timedelta(days=now_et.weekday())
     week_of  = week_mon.strftime("%B %d, %Y")
@@ -228,67 +274,120 @@ def calendar_context_str(events: list[dict]) -> str:
     return "\n".join(lines)
 
 
-# ── Poll helpers ───────────────────────────────────────────────────────────────
+# ── Poll: Claude extraction ────────────────────────────────────────────────────
 
-def _ai_generate_poll_sync(topic: str) -> dict:
-    """Synchronous Claude call — run via asyncio.to_thread."""
+def _extract_poll_data(raw_request: str) -> dict:
+    """
+    Call Claude to extract a poll question + 2-4 options from the founder's raw request.
+    Returns {"question": str, "options": [str, ...]}. Raises on parse failure.
+    """
     response = ai.messages.create(
         model=AI_MODEL,
         max_tokens=300,
-        system=(
-            "You are a financial Discord bot. Generate a poll for a trading community "
-            "about the given topic. Respond ONLY with valid JSON in this exact format "
-            "(no markdown fences): "
-            '{"question": "...", "options": ["Option 1", "Option 2", "Option 3"]}. '
-            "2 to 4 options. Keep question under 100 characters."
-        ),
-        messages=[{"role": "user", "content": f"Create a poll about: {topic}"}],
+        messages=[{
+            "role": "user",
+            "content": (
+                "Extract a poll question and 2-4 short answer options from this request. "
+                "Return ONLY valid JSON with no markdown fences and no other text:\n"
+                '{"question":"...","options":["...","..."]}\n\n'
+                f"Request: {raw_request}"
+            ),
+        }],
     )
     raw = response.content[0].text.strip()
+    # Strip any accidental code fences
     raw = re.sub(r"^```[a-z]*\n?", "", raw).rstrip("`").strip()
-    return json.loads(raw)
+    data = json.loads(raw)
+    if "question" not in data or "options" not in data:
+        raise ValueError(f"Claude JSON missing required keys: {list(data.keys())}")
+    return data
 
 
-async def post_poll(
-    channel: discord.abc.Messageable,
-    question: str,
-    options: list[str],
-    duration_hours: int = 24,
-) -> discord.Message:
+# ── Poll: create native Discord Poll (or log + fall back, never silently drop) ─
+
+async def create_poll_from_request(message: discord.Message, raw_request: str) -> None:
     """
-    Post a poll. Tries native Discord Poll first; falls back to an embed
-    with numbered reactions if the API call fails for any reason.
+    Given a founder's @mention poll request, call Claude to extract question + options,
+    then post a real native Discord Poll.
+
+    Failure policy (NEVER silently fall back to plain text):
+      - Claude extraction fails  → log traceback, reply with error + traceback snippet
+      - discord.Poll send fails  → log traceback, attempt reaction-embed fallback
+      - Reaction embed also fails → log traceback, reply with full error
     """
-    # ── Attempt 1: native Discord Poll ────────────────────────────────────────
+    log.info("create_poll_from_request: author=%s(%s) request=%r",
+             message.author, message.author.id, raw_request)
+
+    # ── Step 1: Extract question + options via Claude ──────────────────────────
+    try:
+        poll_data = await asyncio.to_thread(_extract_poll_data, raw_request)
+        question  = poll_data["question"].strip()
+        options   = [str(o).strip() for o in poll_data.get("options", [])][:4]
+        if len(options) < 2:
+            raise ValueError(
+                f"Claude returned only {len(options)} option(s) — need at least 2. "
+                f"Full response: {poll_data}"
+            )
+        log.info("Poll extracted — question=%r  options=%r", question, options)
+    except Exception:
+        tb = traceback.format_exc()
+        log.error("Poll extraction failed:\n%s", tb)
+        snippet = tb[-500:].replace("```", "'''")
+        await message.reply(
+            "⚠️ Couldn't parse a poll from that request — Claude didn't return valid JSON.\n"
+            f"Use `/poll question:\"...\" options:\"A, B, C\"` as a fallback. 🍜\n"
+            f"```\n{snippet}\n```"
+        )
+        return
+
+    # ── Step 2: Try native discord.Poll ───────────────────────────────────────
     try:
         poll = discord.Poll(
             question=question,
-            duration=datetime.timedelta(hours=duration_hours),
+            duration=datetime.timedelta(hours=24),
             multiple=False,
         )
         for opt in options:
             poll.add_answer(text=opt)
-        return await channel.send(poll=poll)
-    except (discord.HTTPException, AttributeError):
-        pass  # fall through to reaction embed
+        await message.channel.send(poll=poll)
+        await message.reply("Poll's live 🍜")
+        log.info("Native discord.Poll posted successfully — %r", question)
+        return
+    except Exception:
+        tb = traceback.format_exc()
+        log.error("Native discord.Poll failed — falling back to reaction embed:\n%s", tb)
+        # Continue to reaction fallback; do NOT return here
 
-    # ── Attempt 2: embed + reaction voting ────────────────────────────────────
-    lines = [f"{REACTION_NUMBERS[i]}  {opt}" for i, opt in enumerate(options)]
-    embed = discord.Embed(
-        title=f"📊 {question}",
-        description="\n".join(lines),
-        color=discord.Color.gold(),
-    )
-    embed.set_footer(text=f"Poll · closes in {duration_hours}h · react to vote")
-    msg = await channel.send(embed=embed)
-    for i in range(len(options)):
-        await msg.add_reaction(REACTION_NUMBERS[i])
-    return msg
+    # ── Step 3: Reaction-embed fallback (logged, not silent) ──────────────────
+    log.warning("Using reaction-embed fallback for poll: %r", question)
+    try:
+        lines = [f"{REACTION_NUMBERS[i]}  {opt}" for i, opt in enumerate(options)]
+        embed = discord.Embed(
+            title=f"📊 {question}",
+            description="\n".join(lines),
+            color=discord.Color.gold(),
+        )
+        embed.set_footer(
+            text="Poll · 24h · react to vote  (native poll unavailable — check bot permissions)"
+        )
+        msg = await message.channel.send(embed=embed)
+        for i in range(len(options)):
+            await msg.add_reaction(REACTION_NUMBERS[i])
+        await message.reply("Poll's live (reaction mode) 🍜")
+        log.info("Reaction-embed poll posted — %r", question)
+    except Exception:
+        tb = traceback.format_exc()
+        log.error("Reaction-embed fallback also failed:\n%s", tb)
+        snippet = tb[-500:].replace("```", "'''")
+        await message.reply(
+            f"⚠️ Poll creation failed completely. Use `/poll` instead. 🍜\n"
+            f"```\n{snippet}\n```"
+        )
 
 
 # ── /poll slash command ────────────────────────────────────────────────────────
 
-@tree.command(name="poll", description="Post a poll to this channel (Admin / Mod only)")
+@tree.command(name="poll", description="Post a poll to this channel (Admin / Mod / Founder only)")
 @app_commands.describe(
     question="The poll question",
     options="Comma-separated options, 2–10 (e.g. Bullish 🟢, Bearish 🔴, Neutral ⚪)",
@@ -302,7 +401,7 @@ async def poll_command(
 ) -> None:
     if not has_poll_permission(interaction.user):
         await interaction.response.send_message(
-            "❌ Only Admins and Moderators can create polls.", ephemeral=True
+            "❌ Only Admins, Moderators, and Founders can create polls.", ephemeral=True
         )
         return
 
@@ -324,8 +423,32 @@ async def poll_command(
         return
 
     await interaction.response.defer(ephemeral=True)
-    await post_poll(interaction.channel, question, parsed, duration)
-    await interaction.followup.send("✅ Poll posted!", ephemeral=True)
+    try:
+        poll = discord.Poll(
+            question=question,
+            duration=datetime.timedelta(hours=duration),
+            multiple=False,
+        )
+        for opt in parsed:
+            poll.add_answer(text=opt)
+        await interaction.channel.send(poll=poll)
+        await interaction.followup.send("✅ Poll posted!", ephemeral=True)
+        log.info("/poll command: %r by %s", question, interaction.user)
+    except Exception:
+        tb = traceback.format_exc()
+        log.error("/poll command failed:\n%s", tb)
+        # Reaction embed fallback for slash command too
+        lines = [f"{REACTION_NUMBERS[i]}  {opt}" for i, opt in enumerate(parsed[:10])]
+        embed = discord.Embed(
+            title=f"📊 {question}",
+            description="\n".join(lines),
+            color=discord.Color.gold(),
+        )
+        embed.set_footer(text=f"Poll · {duration}h · react to vote")
+        msg = await interaction.channel.send(embed=embed)
+        for i in range(len(parsed)):
+            await msg.add_reaction(REACTION_NUMBERS[i])
+        await interaction.followup.send("✅ Poll posted (reaction mode)!", ephemeral=True)
 
 
 # ── /calendar slash command ────────────────────────────────────────────────────
@@ -347,7 +470,7 @@ async def calendar_weekly_post() -> None:
     now   = datetime.datetime.now(ET)
     today = now.date()
 
-    if now.weekday() != 6:           # Sunday only
+    if now.weekday() != 6:
         return
     if now.hour != 19 or now.minute != 30:
         return
@@ -355,11 +478,10 @@ async def calendar_weekly_post() -> None:
         return
 
     _calendar_posted_date = today
-    feed_ok, events       = await asyncio.to_thread(fetch_ff_calendar)
-    embed                 = format_calendar_embed(feed_ok, events)
-
-    # Prepend "WEEK-AHEAD" to the title
-    embed.title = embed.title.replace("📅 ", "📅 WEEK-AHEAD — ", 1)
+    log.info("Sunday calendar post firing")
+    feed_ok, events = await asyncio.to_thread(fetch_ff_calendar)
+    embed           = format_calendar_embed(feed_ok, events)
+    embed.title     = embed.title.replace("📅 ", "📅 WEEK-AHEAD — ", 1)
 
     for guild in client.guilds:
         category = discord.utils.find(
@@ -375,8 +497,10 @@ async def calendar_weekly_post() -> None:
                     category=category,
                     topic="Weekly red folder economic events — live from ForexFactory via Jarvis",
                 )
+                log.info("Created #%s in guild %s", CALENDAR_CHANNEL_NAME, guild.name)
             except discord.Forbidden:
-                continue  # bot lacks permission to create channels in this guild
+                log.warning("No permission to create #%s in %s", CALENDAR_CHANNEL_NAME, guild.name)
+                continue
 
         try:
             await channel.send(
@@ -386,8 +510,9 @@ async def calendar_weekly_post() -> None:
                 ),
                 embed=embed,
             )
+            log.info("Sunday calendar posted to #%s in %s", CALENDAR_CHANNEL_NAME, guild.name)
         except discord.Forbidden:
-            pass
+            log.warning("No permission to send in #%s in %s", CALENDAR_CHANNEL_NAME, guild.name)
 
 
 @calendar_weekly_post.before_loop
@@ -404,38 +529,29 @@ async def on_message(message: discord.Message) -> None:
     if client.user not in message.mentions:
         return
 
-    # Remove all @mention tokens
     content = re.sub(r"<@!?\d+>", "", message.content).strip()
     if not content:
         content = "Hello"
 
-    async with message.channel.typing():
-        # ── Co-founder poll generation ─────────────────────────────────────────
-        if is_cofounder(message.author) and POLL_REQUEST_RE.search(content):
-            # Strip "make/create/run a poll [about/on/for/asking/regarding]" prefix
-            # so Claude receives only the topic, not the command scaffolding.
-            topic = re.sub(
-                r"(?i)^.*?\bpoll\b\s*(?:about|on|for|regarding|asking|re:?)?\s*",
-                "",
-                content,
-            ).strip() or content
+    # Log every @mention so we can trace routing decisions
+    author_roles = [r.name for r in getattr(message.author, "roles", [])]
+    poll_auth    = is_poll_author(message.author)
+    poll_intent  = is_poll_intent(content)
+    log.info(
+        "on_message: author=%s(id=%s) roles=%s is_poll_author=%s poll_intent=%s content=%r",
+        message.author, message.author.id, author_roles, poll_auth, poll_intent, content[:120],
+    )
 
-            try:
-                poll_data = await asyncio.to_thread(_ai_generate_poll_sync, topic)
-                question  = poll_data["question"]
-                options   = poll_data.get("options", [])[:10]
-                if len(options) < 2:
-                    raise ValueError("AI returned fewer than 2 options")
-                await post_poll(message.channel, question, options, duration_hours=24)
-                await message.reply("Poll's live 🍜")
-            except Exception as exc:
-                await message.reply(
-                    f"⚠️ Couldn't generate that poll (`{exc}`). "
-                    "Try `/poll question:\"...\" options:\"Option A, Option B\"` instead. 🍜"
-                )
+    async with message.channel.typing():
+
+        # ── INTERCEPT: founder poll request ───────────────────────────────────
+        # This branch MUST fire before the general AI reply path.
+        if poll_auth and poll_intent:
+            log.info("Routing to create_poll_from_request")
+            await create_poll_from_request(message, content)
             return
 
-        # ── Calendar keyword: inject live data into Claude context ─────────────
+        # ── Calendar keywords: inject live ForexFactory data ──────────────────
         extra_context = ""
         if CALENDAR_RE.search(content):
             feed_ok, events = await asyncio.to_thread(fetch_ff_calendar)
@@ -445,7 +561,6 @@ async def on_message(message: discord.Message) -> None:
                     "<https://www.forexfactory.com/calendar>"
                 )
                 return
-            # Feed succeeded — inject real data (may be empty for a quiet week)
             extra_context = "\n\n" + calendar_context_str(events)
 
         # ── Standard Claude response ───────────────────────────────────────────
@@ -459,8 +574,9 @@ async def on_message(message: discord.Message) -> None:
                 messages=[{"role": "user", "content": user_prompt}],
             )
             reply = response.content[0].text.strip()
-        except Exception as exc:
-            reply = f"⚠️ AI hiccup — try again in a moment. (`{exc}`) 🍜"
+        except Exception:
+            log.exception("Claude API call failed")
+            reply = "⚠️ AI hiccup — try again in a moment. 🍜"
 
         if len(reply) > 1990:
             reply = reply[:1987] + "…"
@@ -471,7 +587,9 @@ async def on_message(message: discord.Message) -> None:
 
 @client.event
 async def on_ready() -> None:
-    print(f"Jarvis online — {client.user} (ID: {client.user.id})")
+    log.info("Jarvis online — %s (ID: %s)", client.user, client.user.id)
+    log.info("COFOUNDER_IDS set: %s  (%d IDs)", bool(_COFOUNDER_ID_SET), len(_COFOUNDER_ID_SET))
+    log.info("discord.py version: %s", discord.__version__)
 
     guild_id = int(GUILD_ID_STR) if GUILD_ID_STR.isdigit() else None
     if guild_id:
@@ -481,11 +599,11 @@ async def on_ready() -> None:
     else:
         synced = await tree.sync()
 
-    print(f"Slash commands registered: {[c.name for c in synced]}")
+    log.info("Slash commands registered: %s", [c.name for c in synced])
 
     if not calendar_weekly_post.is_running():
         calendar_weekly_post.start()
-    print("Sunday 7:30 PM ET calendar task: running")
+    log.info("Sunday 7:30 PM ET calendar task: running")
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
