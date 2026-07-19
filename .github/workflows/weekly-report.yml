@@ -36,10 +36,10 @@ jobs:
 
     steps:
       # ── 1. Checkout ───────────────────────────────────────────────────────────
-      - name: Checkout repo (working branch)
+      - name: Checkout repo (main)
         uses: actions/checkout@v4
         with:
-          ref: claude/agent-tools-edgar-setup-PimAK
+          ref: main
           fetch-depth: 0
 
       # ── 2. Python ────────────────────────────────────────────────────────────

@@ -64,14 +64,35 @@ _KNOWN_CIKS: dict[str, str] = {
     "RGTI": "0001838359",   # Rigetti Computing
     "BBAI": "0001836981",   # BigBear.ai
     "NEE":  "0000753308",   # NextEra Energy
+    "AAPL": "0000320193",   # Apple
+    "PLTR": "0001321655",   # Palantir
+    "AMZN": "0001018724",   # Amazon
+    "HOOD": "0001783396",   # Robinhood
+    "META": "0001326801",   # Meta Platforms
+    "MU":   "0000723254",   # Micron Technology
+    "TSLA": "0001318605",   # Tesla
+    "NVDA": "0001045810",   # NVIDIA
+    "GOOGL":"0001652044",   # Alphabet
+    "MRVL": "0001058057",   # Marvell Technology
 }
 
 # ── Known Company Metadata ────────────────────────────────────────────────────
 _TICKER_META: dict[str, dict] = {
-    "TEM":  {"name": "Tempus AI, Inc.",          "exch": "NASDAQ"},
-    "RGTI": {"name": "Rigetti Computing, Inc.",   "exch": "NASDAQ"},
-    "BBAI": {"name": "BigBear.ai Holdings, Inc.", "exch": "NYSE"},
-    "NEE":  {"name": "NextEra Energy, Inc.",      "exch": "NYSE"},
+    "TEM":  {"name": "Tempus AI, Inc.",              "exch": "NASDAQ"},
+    "RGTI": {"name": "Rigetti Computing, Inc.",       "exch": "NASDAQ"},
+    "BBAI": {"name": "BigBear.ai Holdings, Inc.",     "exch": "NYSE"},
+    "NEE":  {"name": "NextEra Energy, Inc.",          "exch": "NYSE"},
+    "AAPL": {"name": "Apple Inc.",                    "exch": "NASDAQ"},
+    "PLTR": {"name": "Palantir Technologies Inc.",    "exch": "NYSE"},
+    "AMZN": {"name": "Amazon.com, Inc.",              "exch": "NASDAQ"},
+    "SPCX": {"name": "Procure Space ETF",             "exch": "NASDAQ"},
+    "HOOD": {"name": "Robinhood Markets, Inc.",       "exch": "NASDAQ"},
+    "META": {"name": "Meta Platforms, Inc.",          "exch": "NASDAQ"},
+    "MU":   {"name": "Micron Technology, Inc.",       "exch": "NASDAQ"},
+    "TSLA": {"name": "Tesla, Inc.",                   "exch": "NASDAQ"},
+    "NVDA": {"name": "NVIDIA Corporation",            "exch": "NASDAQ"},
+    "GOOGL":{"name": "Alphabet Inc.",                 "exch": "NASDAQ"},
+    "MRVL": {"name": "Marvell Technology, Inc.",      "exch": "NASDAQ"},
 }
 
 # ── Tickers File ──────────────────────────────────────────────────────────────
