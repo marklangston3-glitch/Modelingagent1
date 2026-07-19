@@ -41,6 +41,14 @@ CALENDAR_FEED_URL     = "https://nfs.faireconomy.media/ff_calendar_thisweek.json
 POLL_ROLES      = {"admin", "moderator", "co-founder", "co founder"}
 COFOUNDER_ROLES = {"co-founder", "co founder", "cofounder"}
 
+# Comma-separated Discord user IDs of co-founders — checked before role names.
+# Set COFOUNDER_IDS=123456789,987654321 in Railway env vars.
+_COFOUNDER_ID_SET: set[int] = {
+    int(x.strip())
+    for x in os.environ.get("COFOUNDER_IDS", "").split(",")
+    if x.strip().isdigit()
+}
+
 CALENDAR_RE = re.compile(
     r"\b(calendar|earnings|red\s+folder|news\s+this\s+week|fomc|cpi|nfp|"
     r"jobs\s+report|fed\s+meeting|economic\s+data|macro\s+data|economic\s+events)\b",
@@ -57,11 +65,25 @@ ET = ZoneInfo("America/New_York")
 AI_MODEL = "claude-opus-4-7"
 
 SYSTEM_PROMPT = """\
-You are Jarvis, the AI assistant for Langston's Financial Intelligence Discord server.
+You are Jarvis, The Soup Kitchen's bot for Langston's Financial Intelligence Discord.
 You help members understand markets, macro economics, and trading ideas.
 Write like a smart friend who works on Wall Street — clear, direct, no jargon unless
 you explain it in the same breath. Keep responses concise (under 400 words unless the
-question truly needs more). End every response with 🍜."""
+question truly needs more). End every response with 🍜.
+
+You ARE Jarvis, The Soup Kitchen's only bot, and you HAVE these real capabilities:
+- Creating native Discord polls (founders ask you directly; members can suggest one to founders)
+- /pnl logging and the Friday leaderboard + Top Trader crown
+- /watchlist, /trade alerts, /indicator guide
+- /calendar with live red-folder economic data (ForexFactory feed, real current-week events)
+- Live TradingView signal alerts posted into #markys-alerts
+- Welcome DMs to new members
+- Weekly red-folder rundown every Sunday 7:30 PM ET in #jarvis-calendar
+
+NEVER claim you lack a capability on this list. NEVER recommend other bots like Carl-bot,
+Poll Bot, or any third-party bot — you are The Soup Kitchen's only bot and you handle all
+of this natively. If unsure whether you can do something NOT on this list, say you'll flag
+it to the team instead of denying it."""
 
 REACTION_NUMBERS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
 
@@ -86,6 +108,8 @@ def has_poll_permission(member: discord.Member) -> bool:
 
 
 def is_cofounder(member: discord.Member) -> bool:
+    if _COFOUNDER_ID_SET:
+        return member.id in _COFOUNDER_ID_SET
     return any(r.name.lower() in COFOUNDER_ROLES for r in member.roles)
 
 
@@ -388,13 +412,13 @@ async def on_message(message: discord.Message) -> None:
     async with message.channel.typing():
         # ── Co-founder poll generation ─────────────────────────────────────────
         if is_cofounder(message.author) and POLL_REQUEST_RE.search(content):
-            # Try to extract the topic after "poll about / poll on / poll for"
-            topic_m = re.search(
-                r"\b(?:poll|vote)\s+(?:about|on|for|regarding|re:?)?\s+(.+)",
+            # Strip "make/create/run a poll [about/on/for/asking/regarding]" prefix
+            # so Claude receives only the topic, not the command scaffolding.
+            topic = re.sub(
+                r"(?i)^.*?\bpoll\b\s*(?:about|on|for|regarding|asking|re:?)?\s*",
+                "",
                 content,
-                re.IGNORECASE,
-            )
-            topic = topic_m.group(1).strip() if topic_m else content
+            ).strip() or content
 
             try:
                 poll_data = await asyncio.to_thread(_ai_generate_poll_sync, topic)
@@ -402,11 +426,11 @@ async def on_message(message: discord.Message) -> None:
                 options   = poll_data.get("options", [])[:10]
                 if len(options) < 2:
                     raise ValueError("AI returned fewer than 2 options")
-                await message.channel.send(f"📊 Generating poll: **{question}**")
                 await post_poll(message.channel, question, options, duration_hours=24)
+                await message.reply("Poll's live 🍜")
             except Exception as exc:
-                await message.channel.send(
-                    f"⚠️ Couldn't auto-generate that poll (`{exc}`). "
+                await message.reply(
+                    f"⚠️ Couldn't generate that poll (`{exc}`). "
                     "Try `/poll question:\"...\" options:\"Option A, Option B\"` instead. 🍜"
                 )
             return
