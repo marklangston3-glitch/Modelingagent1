@@ -1,11 +1,14 @@
 # Langston's Financial Intelligence — Watchlist
 # One ticker per line. Lines starting with # are ignored.
 # CIKs and metadata are managed automatically by config.py.
-TEM
-CRNC
-RGTI
-BBAI
-NEE
-FRVO
-BE
-ACLS
+AAPL
+PLTR
+AMZN
+SPCX
+HOOD
+META
+MU
+TSLA
+NVDA
+GOOGL
+MRVL
