@@ -88,8 +88,11 @@ jobs:
       # ── 6. Email via SendGrid ─────────────────────────────────────────────────
       # Runs only when generate step succeeded AND no_email is not 'true'.
       # Reads recipients from recipients.txt — add addresses there, no code change needed.
+      # continue-on-error: email delivery failure (quota, auth) must not fail the
+      # overall job — the PDF is already uploaded as an artifact above.
       - name: Email weekly rollup via SendGrid
         if: success() && github.event.inputs.no_email != 'true'
+        continue-on-error: true
         env:
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
         run: |
@@ -206,6 +209,9 @@ jobs:
           except urllib.error.HTTPError as exc:
               body = exc.read().decode(errors="replace")
               print(f"✗ SendGrid HTTP {exc.code}: {body[:500]}")
+              # Exit 1 marks this step as failed (visible in UI) but
+              # continue-on-error: true on the step prevents it from
+              # failing the overall job. PDF is already in the artifact.
               raise SystemExit(1)
           except Exception as exc:
               print(f"✗ Network error: {exc}")
