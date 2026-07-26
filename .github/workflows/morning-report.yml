@@ -112,9 +112,21 @@ jobs:
       # ── 6. Email via SendGrid ─────────────────────────────────────────────────
       - name: Email morning report via SendGrid
         if: success() && github.event.inputs.no_email != 'true'
+        continue-on-error: true
         env:
           SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
         run: python send_morning_email.py --date "${{ steps.generate.outputs.date_tag }}"
+
+      # ── 6b. Post to Discord ───────────────────────────────────────────────────
+      # Uploads the PDF directly to a Discord channel via webhook — no SendGrid needed.
+      # Setup: Discord → Channel Settings → Integrations → Webhooks → Copy URL
+      #        GitHub  → Settings → Secrets → Actions → DISCORD_WEBHOOK_URL
+      - name: Post morning report to Discord
+        if: success()
+        continue-on-error: true
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python send_discord_report.py morning --date "${{ steps.generate.outputs.date_tag }}"
 
       # ── 7. Print log ──────────────────────────────────────────────────────────
       - name: Print report log (last 100 lines)

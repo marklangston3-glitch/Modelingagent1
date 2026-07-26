@@ -218,6 +218,17 @@ jobs:
               raise SystemExit(1)
           PYEOF
 
+      # ── 6b. Post to Discord ───────────────────────────────────────────────────
+      # Uploads the PDF directly to a Discord channel via webhook — no SendGrid needed.
+      # Setup: Discord → Channel Settings → Integrations → Webhooks → Copy URL
+      #        GitHub  → Settings → Secrets → Actions → DISCORD_WEBHOOK_URL
+      - name: Post weekly report to Discord
+        if: success()
+        continue-on-error: true
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python send_discord_report.py weekly
+
       # ── 7. Print log in Actions summary ──────────────────────────────────────
       - name: Print weekly log (last 100 lines)
         if: always()
